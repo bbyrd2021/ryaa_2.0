@@ -125,7 +125,9 @@ class CalendarSkill:
             messages=[
                 Message(
                     role="system",
-                    content=f"{self._date_context()} Extract detailed event information. When dates reference 'next Tuesday' or similar relative dates, use this current date as reference.",
+                    content=f"{self._date_context()} Extract detailed event information."
+                    "When dates reference 'next Tuesday' or similar relative dates, use this current date as reference."
+                    "Only include participants who are explicitly named. If no one else is mentioned, returnn empty list.",
                 ),
                 Message(
                     role="user",

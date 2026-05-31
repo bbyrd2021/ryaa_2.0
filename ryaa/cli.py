@@ -9,7 +9,7 @@ from ryaa.providers.openai_provider import OpenAIProvider
 from ryaa.safety.confirm import CLIConfirm
 from ryaa.safety.guardrails import Guardrails
 from ryaa.skills.calendar import CalendarSkill
-from ryaa.tools.calendar_tool import StubCalendar
+from ryaa.tools.calendar_tool import AppleCalendar
 
 
 def main() -> None:
@@ -23,7 +23,8 @@ def main() -> None:
         guardrails=Guardrails(provider=provider),
         calendar=CalendarSkill(provider=provider),
         confirmer=CLIConfirm(),  # real terminal y/N prompt
-        backend=StubCalendar(),  # swap for AppleCalendar / GraphCalendar later
+        backend=AppleCalendar(),
+        # backend=StubCalendar(),  # swap for AppleCalendar / GraphCalendar later
     )
 
     print("RYAA - your scheduling assistant. Type a request, or 'quit' to exit.")
