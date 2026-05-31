@@ -1,0 +1,20 @@
+{
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python-envs.pythonProjects": [],
+  "python.defaultInterpreterPath": "/opt/anaconda3/envs/ryaa/bin/python",
+
+  // --- Ruff is the ONE tool for both formatting and linting ---
+  "[python]": {
+    // Use the Ruff extension (charliermarsh.ruff) as the formatter, so
+    // format-on-save runs `ruff format` — the same engine as the CLI.
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      // Auto-fix lint issues (e.g. remove unused imports) on save...
+      "source.fixAll.ruff": "explicit",
+      // ...and sort imports on save (Ruff's built-in isort).
+      "source.organizeImports.ruff": "explicit"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Development-only dependencies (linting, formatting, type checking, tests).
+# Kept separate from requirements.txt because production doesn't need these —
+# you don't ship your linter. Install with:  pip install -r requirements-dev.txt
+ruff
+mypy
+pytest

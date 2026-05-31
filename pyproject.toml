@@ -1,0 +1,43 @@
+# Project configuration. Ruff handles BOTH linting and formatting from here,
+# so there is exactly one place that defines line length and style — the
+# Black-vs-flake8 disagreement is now structurally impossible.
+
+[tool.ruff]
+# The single source of truth for line length. Both `ruff format` and the
+# `ruff check` linter read this same number, so they can never conflict.
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+# Which lint rule families to enforce:
+#   E, W = pycodestyle (the PEP 8 checks flake8 ran, incl. the old E501)
+#   F    = pyflakes (unused imports/vars, undefined names — real bug catchers)
+#   I    = isort (import ordering) — Ruff also SORTS imports for you on format
+select = ["E", "W", "F", "I"]
+
+# E501 (line too long) is intentionally left to the FORMATTER, not the linter:
+# `ruff format` wraps lines to 88, so we don't also want the linter nagging
+# about the rare line it can't auto-wrap (e.g. a long URL in a string).
+ignore = ["E501"]
+
+
+[tool.pytest.ini_options]
+# Where pytest looks for tests.
+testpaths = ["tests"]
+
+# Add the project root to sys.path so `import ryaa` works no matter how pytest
+# is launched (`pytest` console script vs `python -m pytest`). Without this, the
+# `pytest` script doesn't put the project root on the import path and you'd get
+# ModuleNotFoundError: No module named 'ryaa'.
+pythonpath = ["."]
+
+# Registered markers (pytest warns on unregistered ones, which catches typos
+# like @pytest.mark.integraton).
+markers = [
+    "integration: hits real external APIs — slow, costs money, needs a key. Deselected by default; run with `pytest -m integration`.",
+]
+
+# Default run EXCLUDES integration tests, so `pytest` alone is fast/free/offline.
+# Run the real-API ones explicitly with:  pytest -m integration
+addopts = "-m 'not integration'"
+

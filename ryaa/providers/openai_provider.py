@@ -1,0 +1,82 @@
+"""
+OpenAI implementation of the LLMProvider contract.
+
+YOUR TASK: fill in the two TODOs. Everything you need you've already written in
+1-basic.py (complete) and 2-structured_output.py (structured). The only new bit
+is translating our neutral Message objects into the dict shape OpenAI wants.
+
+When done, this class will satisfy LLMProvider structurally — no inheritance
+needed — because it has complete() and structured() with matching signatures.
+"""
+
+from __future__ import annotations
+
+import os
+from typing import cast
+
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
+
+from .base import Message, T
+
+# Why a module-level default instead of hardcoding "gpt-4o" in each method:
+# one place to change the model, and it documents the provider's default.
+DEFAULT_MODEL = "gpt-4o"
+
+
+class OpenAIProvider:
+    """
+    OpenAI provider implementation.
+    """
+
+    def __init__(self, api_key: str | None = None, default_model: str = DEFAULT_MODEL):
+        # If no key is passed, fall back to the environment (load_dotenv runs in
+        # your entrypoint). Storing the client once and reusing it is cheaper than
+        # constructing one per call.
+
+        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        self.default_model = default_model
+
+    def _to_openai(self, messages: list[Message]) -> list[ChatCompletionMessageParam]:
+        """
+        Translate OUR Message objects -> OpenAI's [{"role":..,"content":..}] dicts.
+        This is the one place vendor formatting lives. (Helper, not part of the
+        contract.)
+        """
+
+        return cast(
+            list[ChatCompletionMessageParam],
+            [{"role": m.role, "content": m.content} for m in messages],
+        )
+
+    def complete(self, messages: list[Message], *, model: str | None = None) -> str:
+        """
+        Plain-text completion. Returns the assistant's text response.
+        """
+        model = model or self.default_model
+        completion = self.client.chat.completions.create(
+            model=model,
+            messages=self._to_openai(messages),
+        )
+        result = completion.choices[0].message.content
+        if result is None:
+            raise ValueError("Failed to parse text response")
+        return result
+
+    def structured(
+        self, messages: list[Message], schema: type[T], *, model: str | None = None
+    ) -> T:
+        """
+        Structured completion. Returns an INSTANCE of `schema` (a Pydantic model),
+        already validated.
+        """
+        model = model or self.default_model
+        completion = self.client.beta.chat.completions.parse(
+            model=model,
+            messages=self._to_openai(messages),
+            response_format=schema,
+        )
+        result = completion.choices[0].message.parsed
+        if result is None:
+            raise ValueError("Failed to parse structured response")
+        return result
