@@ -197,6 +197,7 @@ class CalendarBackend(Protocol):
 
     def create_event(self, event: EventDetails) -> str: ...  # returns the event ID
     def list_events(self, start: datetime, end: datetime) -> list[EventRef]: ...
+    def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]: ...
 
 
 class StubCalendar:
@@ -231,6 +232,9 @@ class StubCalendar:
 
     def list_events(self, start: datetime, end: datetime) -> list[EventRef]:
         return [e for e in self._FAKE_EVENTS if start <= e.start <= end]
+
+    def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]:
+        return [e for e in self.list_events(start, end) if query.lower() in e.name.lower()]
 
 
 class AppleCalendar:
@@ -274,6 +278,10 @@ class AppleCalendar:
                 )
             )
         return events
+
+    def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]:
+        # Reuses the proven list_events read; a native osascript text search is a later optimization.
+        return [e for e in self.list_events(start, end) if query.lower() in e.name.lower()]
 
 
 def _build_list_script(cal, start, end):

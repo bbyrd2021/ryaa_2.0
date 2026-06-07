@@ -31,6 +31,21 @@ PROPOSE_EVENT = ToolSpec(
   parameters=EventDetails.model_json_schema(),
 )
 
+class FindEventsArgs(BaseModel):
+  query: str = Field(description="Text to match against event names, e.g. 'dentist'")
+  start: datetime = Field(description="Search window start, ISO-8601")
+  end: datetime = Field(description="Search window end, ISO-8601")
+
+FIND_EVENTS = ToolSpec(
+  name="find_events",
+  description=(
+    "Find existing events whose name matches a query within a time window. "
+    "Use this to locate an event the user wants to change or ask about; "
+    "if more than one matches, ask the user which one before acting."
+  ),
+  parameters=FindEventsArgs.model_json_schema(),
+)
+
 class CalendarSkill:
   """SKILL: how to schedule. Wraps the calendar TOOL (osascript backend)."""
 
@@ -48,11 +63,13 @@ class CalendarSkill:
       "When you know name + start + duration, call propose_event "
       "(the user confirms separately). Resolve relative dates against today. "
       "Listed events carry a state: 'created'/'modified' means you scheduled or changed it, "
-      "'external' means it was already on the calendar — mention this when it helps."
+      "'external' means it was already on the calendar — mention this when it helps. "
+      "To change or ask about an existing event, call find_events first; "
+      "if several match, ask which one."
     )
 
   def tools(self) -> list[ToolSpec]:
-    return [LIST_EVENTS, PROPOSE_EVENT]
+    return [LIST_EVENTS, PROPOSE_EVENT, FIND_EVENTS]
 
   def run_tool(self, call: ToolCall) -> AgentResult | str:
     if call.name == "propose_event":
@@ -62,21 +79,29 @@ class CalendarSkill:
       start = datetime.fromisoformat(call.arguments["start"])
       end = datetime.fromisoformat(call.arguments["end"])
       events = self.backend.list_events(start, end)
-      if not events:
-        return "No events in that window."
-      for e in events:
-        e.state = self.store.get(e.id) if self.store else None
-      return json.dumps([
-        {
-          "id": e.id,
-          "name": e.name,
-          "start": e.start.isoformat(),
-          "duration_minutes": e.duration_minutes,
-          "state": e.state.status if e.state else "external",
-        }
-        for e in events
-      ])
+      return self._events_json(events, "No events in that window.")
+    if call.name == "find_events":
+      start = datetime.fromisoformat(call.arguments["start"])
+      end = datetime.fromisoformat(call.arguments["end"])
+      events = self.backend.find_events(call.arguments["query"], start, end)
+      return self._events_json(events, "No matching events found.")
     return f"Unknown tool: {call.name}"
+
+  def _events_json(self, events, empty_msg: str) -> str:
+    if not events:
+      return empty_msg
+    for e in events:
+      e.state = self.store.get(e.id) if self.store else None
+    return json.dumps([
+      {
+        "id": e.id,
+        "name": e.name,
+        "start": e.start.isoformat(),
+        "duration_minutes": e.duration_minutes,
+        "state": e.state.status if e.state else "external",
+      }
+      for e in events
+    ])
 
 def _summary(event: EventDetails) -> str:
   participants = ", ".join(event.participants) or "no one else"
