@@ -22,8 +22,28 @@
   border-bottom-color: rgba(20, 70, 92, 0.08);
   border-right-color: rgba(20, 70, 92, 0.08);
   border-radius: 18px;
-  box-shadow: 0 8px 22px rgba(18, 70, 92, 0.12);
+  box-shadow:
+    inset 1.5px 0 0 rgba(255, 70, 130, 0.16),
+    inset -1.5px 0 0 rgba(70, 200, 255, 0.16),
+    0 8px 22px rgba(18, 70, 92, 0.12);
 }
+/* same specular sheen as the bubbles, on the glass bars */
+.app__header::before,
+.composer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.06) 22%,
+    rgba(255, 255, 255, 0) 40%
+  );
+  mix-blend-mode: screen;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -96,10 +116,28 @@
   /* soft "frosted pebble" depth (from your Uiverse card): dark inset from the
      top, light glow rising from the bottom, plus a gentle outer lift */
   box-shadow:
+    /* chromatic-aberration fringe: warm lip left, cool lip right (fake refraction) */
+    inset 1.5px 0 0 rgba(255, 70, 130, 0.16),
+    inset -1.5px 0 0 rgba(70, 200, 255, 0.16),
     inset 0 20px 30px rgba(20, 70, 92, 0.1),
     inset 0 -20px 30px rgba(255, 255, 255, 0.6),
     0 6px 16px rgba(18, 70, 92, 0.1);
   overflow: hidden;
+}
+/* specular sheen — a glossy light-catch in the top-left, like the reference glass */
+.bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.08) 24%,
+    rgba(255, 255, 255, 0) 42%
+  );
+  mix-blend-mode: screen;
 }
 .msg--assistant .bubble {
   background: var(--glass);
@@ -205,7 +243,10 @@
   border-bottom-color: rgba(20, 70, 92, 0.08);
   border-right-color: rgba(20, 70, 92, 0.08);
   border-radius: 18px;
-  box-shadow: 0 8px 22px rgba(18, 70, 92, 0.12);
+  box-shadow:
+    inset 1.5px 0 0 rgba(255, 70, 130, 0.16),
+    inset -1.5px 0 0 rgba(70, 200, 255, 0.16),
+    0 8px 22px rgba(18, 70, 92, 0.12);
 }
 .composer__input {
   flex: 1 1 auto;
