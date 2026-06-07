@@ -35,6 +35,12 @@ class ProposeRequest(BaseModel):
     messages: list[ChatTurn] = Field(description="The whole transcript the browser holds")
 
 
+class ConfirmRequest(BaseModel):
+    action: Literal["create", "modify"] = "create"
+    event: EventDetails
+    event_id: str | None = None  # the event to change (when action == "modify")
+
+
 @app.post("/propose")
 def propose(req: ProposeRequest) -> ProposeResult:
     history = [Message(role=m.role, content=m.content) for m in req.messages]
@@ -42,9 +48,11 @@ def propose(req: ProposeRequest) -> ProposeResult:
 
 
 @app.post("/confirm")
-def confirm(event: EventDetails) -> ScheduleResult:
+def confirm(req: ConfirmRequest) -> ScheduleResult:
     try:
-        return scheduler.create(event)
+        if req.action == "modify" and req.event_id:
+            return scheduler.update(req.event_id, req.event)
+        return scheduler.create(req.event)
     except RuntimeError as e:
-        logger.warning("Create failed: %s", e)
+        logger.warning("Confirm failed: %s", e)
         return ScheduleResult(status="failed", message=str(e))

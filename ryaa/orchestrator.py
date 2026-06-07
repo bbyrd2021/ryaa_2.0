@@ -7,7 +7,7 @@ from ryaa.tools.calendar_tool import EventDetails
 
 
 class ScheduleResult(BaseModel):
-    status: Literal["created", "rejected", "not_calendar", "cancelled", "failed"]
+    status: Literal["created", "modified", "rejected", "not_calendar", "cancelled", "failed"]
     message: str
     event_id: str | None = None
 
@@ -17,6 +17,8 @@ class ProposeResult(BaseModel):
     summary: str | None = None
     reasons: list[str] = []
     event: EventDetails | None = None
+    action: Literal["create", "modify"] = "create"  # how /confirm should act
+    event_id: str | None = None                     # the event to modify (action == "modify")
 
 
 class Scheduler:
@@ -39,7 +41,13 @@ class Scheduler:
 
         result = self.agent.run(history)
         if result.kind == "proposal":
-            return ProposeResult(status="proposed", summary=result.summary, event=result.event)
+            return ProposeResult(
+                status="proposed",
+                summary=result.summary,
+                event=result.event,
+                action=result.action,
+                event_id=result.event_id,
+            )
         return ProposeResult(status="reply", summary=result.summary)
 
     def propose(self, user_input: str) -> ProposeResult:
@@ -59,6 +67,14 @@ class Scheduler:
             self.store.mark_created(event_id)
         return ScheduleResult(
             status="created", message=f"Created '{event.name}'.", event_id=event_id
+        )
+
+    def update(self, event_id: str, event: EventDetails) -> ScheduleResult:
+        self.backend.update_event(event_id, event)
+        if self.store is not None:
+            self.store.mark_modified(event_id)
+        return ScheduleResult(
+            status="modified", message=f"Updated '{event.name}'.", event_id=event_id
         )
 
     def schedule(self, user_input) -> ScheduleResult:

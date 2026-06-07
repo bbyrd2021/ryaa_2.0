@@ -10,7 +10,9 @@ from ryaa.tools.calendar_tool import EventDetails
 class AgentResult(BaseModel):
   kind: Literal["proposal", "reply"]
   summary: str | None = None          # the proposal summary OR the reply text
-  event: EventDetails | None = None   # carried on a calendar proposal (generalize at skill #3)
+  event: EventDetails | None = None   # carried on a calendar proposal
+  action: Literal["create", "modify"] = "create"  # what confirming the proposal does
+  event_id: str | None = None         # the event to change (when action == "modify")
 
 class Skill(Protocol):
   """Guidance for a family of tools: WHAT it does, HOW to use it, and the tools themselves."""

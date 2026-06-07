@@ -44,10 +44,19 @@ type ProposeResult = {
   summary: string | null;
   reasons: string[];
   event: EventDetails | null;
+  action: "create" | "modify";
+  event_id: string | null;
 };
 type ScheduleResult = {
-  status: "created" | "rejected" | "not_calendar" | "cancelled" | "failed";
+  status: "created" | "modified" | "rejected" | "not_calendar" | "cancelled" | "failed";
   message: string;
+  event_id: string | null;
+};
+// What the browser holds between /propose and /confirm: the event + whether
+// confirming will create or modify (and which event, for modify).
+type Pending = {
+  event: EventDetails;
+  action: "create" | "modify";
   event_id: string | null;
 };
 
@@ -61,7 +70,7 @@ function App() {
   ]);
   // The event RYAA has proposed and is waiting on you to confirm. null = nothing
   // pending. The browser holds this between /propose and /confirm (stateless API).
-  const [pending, setPending] = useState<EventDetails | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   // True while a request is in flight — used to disable inputs so you can't
   // double-send or confirm twice.
   const [busy, setBusy] = useState(false);
@@ -115,7 +124,11 @@ function App() {
           role: "assistant",
           content: data.summary ?? "Here's the plan:",
         });
-        setPending(data.event);
+        setPending({
+          event: data.event,
+          action: data.action,
+          event_id: data.event_id,
+        });
       } else if (data.status === "reply") {
         addMessage({ role: "assistant", content: data.summary ?? "..." });
       } else if (data.status === "rejected") {

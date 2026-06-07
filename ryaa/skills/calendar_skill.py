@@ -46,6 +46,18 @@ FIND_EVENTS = ToolSpec(
   parameters=FindEventsArgs.model_json_schema(),
 )
 
+class ModifyEventArgs(EventDetails):
+  event_id: str = Field(description="id of the existing event to modify (from find_events)")
+
+PROPOSE_MODIFICATION = ToolSpec(
+  name="propose_modification",
+  description=(
+    "Propose a change to an existing event for the user to confirm. Provide the event_id "
+    "(from find_events) and the NEW name/start/duration/participants. Changes nothing until confirmed."
+  ),
+  parameters=ModifyEventArgs.model_json_schema(),
+)
+
 class CalendarSkill:
   """SKILL: how to schedule. Wraps the calendar TOOL (osascript backend)."""
 
@@ -65,16 +77,32 @@ class CalendarSkill:
       "Listed events carry a state: 'created'/'modified' means you scheduled or changed it, "
       "'external' means it was already on the calendar — mention this when it helps. "
       "To change or ask about an existing event, call find_events first; "
-      "if several match, ask which one."
+      "if several match, ask which one. Once you know the event_id and the new "
+      "details, call propose_modification (the user confirms separately)."
     )
 
   def tools(self) -> list[ToolSpec]:
-    return [LIST_EVENTS, PROPOSE_EVENT, FIND_EVENTS]
+    return [LIST_EVENTS, PROPOSE_EVENT, FIND_EVENTS, PROPOSE_MODIFICATION]
 
   def run_tool(self, call: ToolCall) -> AgentResult | str:
     if call.name == "propose_event":
       event = EventDetails(**call.arguments)
       return AgentResult(kind="proposal", event=event, summary=_summary(event))
+    if call.name == "propose_modification":
+      args = ModifyEventArgs(**call.arguments)
+      event = EventDetails(
+        name=args.name,
+        start=args.start,
+        duration_minutes=args.duration_minutes,
+        participants=args.participants,
+      )
+      return AgentResult(
+        kind="proposal",
+        action="modify",
+        event_id=args.event_id,
+        event=event,
+        summary=f"Change '{event.name}' to {event.start:%A %b %d %Y at %I:%M %p} for {event.duration_minutes} min?",
+      )
     if call.name == "list_events":
       start = datetime.fromisoformat(call.arguments["start"])
       end = datetime.fromisoformat(call.arguments["end"])

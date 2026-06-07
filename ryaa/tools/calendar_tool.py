@@ -198,6 +198,7 @@ class CalendarBackend(Protocol):
     def create_event(self, event: EventDetails) -> str: ...  # returns the event ID
     def list_events(self, start: datetime, end: datetime) -> list[EventRef]: ...
     def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]: ...
+    def update_event(self, event_id: str, event: EventDetails) -> str: ...  # returns the id
 
 
 class StubCalendar:
@@ -235,6 +236,17 @@ class StubCalendar:
 
     def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]:
         return [e for e in self.list_events(start, end) if query.lower() in e.name.lower()]
+
+    def update_event(self, event_id: str, event: EventDetails) -> str:
+        for ref in self._FAKE_EVENTS:
+            if ref.id == event_id:
+                ref.name = event.name
+                ref.start = event.start
+                ref.duration_minutes = event.duration_minutes
+                ref.participants = event.participants
+                break
+        logger.info("STUB updated event %s -> %s @ %s", event_id, event.name, event.start)
+        return event_id
 
 
 class AppleCalendar:
@@ -282,6 +294,51 @@ class AppleCalendar:
     def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]:
         # Reuses the proven list_events read; a native osascript text search is a later optimization.
         return [e for e in self.list_events(start, end) if query.lower() in e.name.lower()]
+
+    def update_event(self, event_id: str, event: EventDetails) -> str:
+        # ⚠️ real-device write; verify on your machine before relying on it heavily.
+        end = event.start + timedelta(minutes=event.duration_minutes)
+        summary = event.name.replace("\\", "\\\\").replace('"', '\\"')
+        uid = event_id.replace('"', '\\"')
+        script = _build_update_script(self.calendar_name, uid, summary, event.start, end)
+        result = subprocess.run(
+            ["osascript", "-e", script], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Calendar update failed: {result.stderr.strip()}")
+        return event_id
+
+
+def _build_update_script(cal, uid, summary, start, end):
+    return f"""
+        set startDate to current date
+        set day of startDate to 1
+        set year of startDate to {start.year}
+        set month of startDate to {start.month}
+        set day of startDate to {start.day}
+        set hours of startDate to {start.hour}
+        set minutes of startDate to {start.minute}
+        set seconds of startDate to 0
+        set endDate to current date
+        set day of endDate to 1
+        set year of endDate to {end.year}
+        set month of endDate to {end.month}
+        set day of endDate to {end.day}
+        set hours of endDate to {end.hour}
+        set minutes of endDate to {end.minute}
+        set seconds of endDate to 0
+        tell application "Calendar"
+            tell calendar "{cal}"
+                set theEvents to (every event whose uid is "{uid}")
+                repeat with e in theEvents
+                    set summary of e to "{summary}"
+                    set start date of e to startDate
+                    set end date of e to endDate
+                end repeat
+            end tell
+        end tell
+        return "{uid}"
+    """
 
 
 def _build_list_script(cal, start, end):
