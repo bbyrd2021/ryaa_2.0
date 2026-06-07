@@ -2,7 +2,7 @@ from datetime import datetime
 
 from ryaa.orchestrator import Scheduler
 from ryaa.safety.guardrails import CalendarValidation, Guardrails, SecurityCheck
-from ryaa.skills.calendar import CalendarSkill, EventDetails, EventExtraction
+from ryaa.tools.calendar_tool import CalendarParser, EventDetails, EventExtraction
 
 
 def _provider(fake_provider):
@@ -30,7 +30,7 @@ def test_confirmed_creates_event(fake_provider, fake_confirmer, fake_calendar_ba
     backend = fake_calendar_backend()
     scheduler = Scheduler(
         guardrails=Guardrails(provider=provider),
-        calendar=CalendarSkill(provider=provider),
+        calendar=CalendarParser(provider=provider),
         confirmer=fake_confirmer(answer=True),
         backend=backend,
     )
@@ -45,7 +45,7 @@ def test_declined_does_not_create(fake_provider, fake_confirmer, fake_calendar_b
     backend = fake_calendar_backend()
     scheduler = Scheduler(
         guardrails=Guardrails(provider=provider),
-        calendar=CalendarSkill(provider=provider),
+        calendar=CalendarParser(provider=provider),
         confirmer=fake_confirmer(answer=False),  # user says no
         backend=backend,
     )

@@ -4,12 +4,8 @@ import logging
 
 from dotenv import load_dotenv
 
-from ryaa.orchestrator import Scheduler
-from ryaa.providers.openai_provider import OpenAIProvider
+from ryaa.factory import build_scheduler
 from ryaa.safety.confirm import CLIConfirm
-from ryaa.safety.guardrails import Guardrails
-from ryaa.skills.calendar import CalendarSkill
-from ryaa.tools.calendar_tool import AppleCalendar
 
 
 def main() -> None:
@@ -18,14 +14,7 @@ def main() -> None:
         level=logging.WARNING
     )  # WARNING = quiet; flip to INFO to watch internals
     # --- composition root: pick the concrete implementations ---
-    provider = OpenAIProvider()
-    scheduler = Scheduler(
-        guardrails=Guardrails(provider=provider),
-        calendar=CalendarSkill(provider=provider),
-        confirmer=CLIConfirm(),  # real terminal y/N prompt
-        backend=AppleCalendar(),
-        # backend=StubCalendar(),  # swap for AppleCalendar / GraphCalendar later
-    )
+    scheduler = build_scheduler(confirmer=CLIConfirm())
 
     print("RYAA - your scheduling assistant. Type a request, or 'quit' to exit.")
     while True:

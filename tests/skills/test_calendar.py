@@ -1,4 +1,4 @@
-from ryaa.skills.calendar import CalendarSkill, EventExtraction
+from ryaa.tools.calendar_tool import CalendarParser, EventExtraction
 
 
 def test_gate_rejects_low_confidence(fake_provider):
@@ -10,7 +10,7 @@ def test_gate_rejects_low_confidence(fake_provider):
             confidence_score=0.4,  # below the threshold
         )
     )
-    skill = CalendarSkill(provider=provider)
+    skill = CalendarParser(provider=provider)
 
     # Act: process a non-calendar request
     result = skill.process("Schedule something")

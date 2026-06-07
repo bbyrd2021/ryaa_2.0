@@ -36,6 +36,26 @@ from pydantic import BaseModel
 T = TypeVar("T", bound=BaseModel)
 
 
+class ToolCall(BaseModel):
+    """A request BY the model to run one tool. `arguments` is already json.loads()'d."""
+    id: str
+    name: str
+    arguments: dict
+
+class ToolSpec(BaseModel):
+    """A tool we OFFER the model. `parameters` is a JSON Schema describing the args."""
+    name: str
+    description: str
+    parameters: dict
+
+
+class ModelTurn(BaseModel):
+    """One step the model takes: some text, and/or some tool calls it wants run."""
+    text: str = ""
+    tool_calls: list[ToolCall] = []
+    tool_call_id: str | None = None
+
+
 class Message(BaseModel):
     """
     One turn in a conversation, in OUR neutral format.
@@ -48,7 +68,9 @@ class Message(BaseModel):
     """
 
     role: Literal["system", "user", "assistant", "tool"]
-    content: str
+    content: str = ""
+    tool_calls: list[ToolCall] = []
+    tool_call_id: str | None = None
 
 
 @runtime_checkable
@@ -96,5 +118,18 @@ class LLMProvider(Protocol):
         The provider is responsible for whatever native mechanism achieves this
         (OpenAI's parse(), Anthropic's tool-forcing, etc.) and for raising if the
         model failed to produce a valid object.
+        """
+        ...
+
+    def act(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        model: str | None = None,
+    ) -> ModelTurn:
+        """
+        One agent step: given the conversation and the tools on offer, return what
+        the model wants to do next — free text and/or tool calls.
         """
         ...

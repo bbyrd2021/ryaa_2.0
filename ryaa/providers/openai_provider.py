@@ -11,13 +11,14 @@ needed — because it has complete() and structured() with matching signatures.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import cast
 
 from openai import OpenAI
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 
-from .base import Message, T
+from .base import Message, ModelTurn, T, ToolCall, ToolSpec
 
 # Why a module-level default instead of hardcoding "gpt-4o" in each method:
 # one place to change the model, and it documents the provider's default.
@@ -43,11 +44,42 @@ class OpenAIProvider:
         This is the one place vendor formatting lives. (Helper, not part of the
         contract.)
         """
-
-        return cast(
-            list[ChatCompletionMessageParam],
-            [{"role": m.role, "content": m.content} for m in messages],
-        )
+        out: list[dict] = []
+        for m in messages:
+            if m.role == "assistant" and m.tool_calls:
+                out.append(
+                    {
+                        "role": "assistant",
+                        "content": m.content or None,
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.name,
+                                    "arguments": json.dumps(tc.arguments),
+                                },
+                            }
+                            for tc in m.tool_calls
+                        ],
+                    }
+                )
+            elif m.role == "tool":
+                out.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": m.tool_call_id,
+                        "content": m.content,
+                    }
+                )
+            else:
+                out.append(
+                    {
+                        "role": m.role,
+                        "content": m.content,
+                    }
+                )
+        return cast(list[ChatCompletionMessageParam], out)
 
     def complete(self, messages: list[Message], *, model: str | None = None) -> str:
         """
@@ -80,3 +112,42 @@ class OpenAIProvider:
         if result is None:
             raise ValueError("Failed to parse structured response")
         return result
+
+    def act(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        model: str | None = None,
+    ) -> ModelTurn:
+        model = model or self.default_model
+        openai_tools = cast(
+            list[ChatCompletionToolParam],
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    },
+                }
+                for t in tools
+            ],
+        )
+        completion = self.client.chat.completions.create(
+            model=model,
+            messages=self._to_openai(messages),
+            tools=openai_tools,
+        )
+        msg = completion.choices[0].message
+        calls = [
+            ToolCall(
+                id=tc.id,
+                name=tc.function.name,
+                arguments=json.loads(tc.function.arguments or "{}"),
+            )
+            for tc in (msg.tool_calls or [])
+            if tc.type == "function"
+        ]
+        return ModelTurn(text=msg.content or "", tool_calls=calls)

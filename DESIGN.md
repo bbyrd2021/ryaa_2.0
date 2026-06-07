@@ -146,7 +146,8 @@ Each feature is one of the workflow patterns already studied — productionized.
 | D2 | **Dream Mode scheduling** | on-demand (lazy, first brief of day) · cron/launchd · background daemon | on-demand for MVP; real scheduler with the UI phase |
 | D3 | **Email *reading* scope** | drafts-only · read inbox to surface "needs reply" | drafts-only first; reading adds Graph read scopes + injection surface — gate hard |
 | D4 | **Todo source** | manual only · manual + RYAA-proposed (via Dream Mode) | both; proposed todos yield for approval |
-| D5 | **Calendar backend** (NOT blocked on Azure!) | macOS Calendar via AppleScript/`osascript` · `.ics` file · Outlook/Graph | All satisfy the `CalendarBackend` Protocol → swappable. Ship on Apple Calendar or `.ics` (no auth); add Outlook later if Azure app-reg clears. RYAA is calendar-platform-agnostic by design. |
+| D5 | **Calendar backend** (NOT blocked on Azure!) | macOS Calendar via AppleScript/`osascript` · `.ics` file · Outlook/Graph | ✅ DECIDED + BUILT: `AppleCalendar` via `osascript` — creates real events, incl. the user's synced NC A&T (`blbyrd@aggies.ncat.edu`) calendar → no Azure needed. All satisfy `CalendarBackend`. |
+| D6 | **Delivery / UI stack** | Python TUI · **FastAPI backend + TypeScript web frontend** · desktop app | ✅ DECIDED: Python brain exposed via a **FastAPI** API; **TypeScript** web frontend for the Frutiger-Aero popup (doubles as Brandon's TS-learning project). Keeps the brain Python, the face TS. |
 
 ---
 
