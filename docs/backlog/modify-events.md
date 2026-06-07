@@ -1,6 +1,9 @@
 # Backlog: Modify / reschedule existing calendar events
 
-**Status:** TABLED (designed, not built) — 2026-05-31. Picking up after the frontend.
+**Status:** SUPERSEDED (2026-06-06) by `docs/specs/modify-events.md` (agent-era design).
+The Router/Selector approach below predates the agent loop; the build now uses agent tools
+(`find_events` + `propose_modification`) with conversational disambiguation, plus a local
+event-state store. Kept for history.
 
 ## Goal
 Let RYAA change existing events ("move my brunch to 11", "make the study session 90 min"), not just create new ones. This is the README's routing example (new vs modify) applied for real.

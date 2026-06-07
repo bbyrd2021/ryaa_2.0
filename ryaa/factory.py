@@ -7,16 +7,18 @@ from ryaa.safety.guardrails import Guardrails
 from ryaa.skills.calendar_skill import CalendarSkill  # agent skill (guidance)
 from ryaa.skills.todo_skill import TodoSkill
 from ryaa.tools.calendar_tool import AppleCalendar, CalendarParser, StubCalendar  # noqa: F401
+from ryaa.tools.event_state import InMemoryEventStore
 
 
 def build_scheduler(confirmer=None) -> Scheduler:
     """Assemble a Scheduler. CLI passes a CLIConfirm; the API passes nothing
     (the browser is the confirmer)."""
     provider = OpenAIProvider()
-    backend = StubCalendar()  # TODO: swap to AppleCalendar() for real events
+    backend = AppleCalendar()  # real macOS Calendar
+    store = InMemoryEventStore()  # event provenance/state, keyed by event id
     agent = Agent(
         provider=provider,
-        skills=[CalendarSkill(backend), TodoSkill()],  # register skills here as RYAA grows
+        skills=[CalendarSkill(backend, store), TodoSkill()],  # register skills here as RYAA grows
     )
     return Scheduler(
         guardrails=Guardrails(provider=provider),
@@ -24,4 +26,5 @@ def build_scheduler(confirmer=None) -> Scheduler:
         backend=backend,                             # same instance the CalendarSkill reads
         confirmer=confirmer,
         agent=agent,
+        store=store,                                 # same instance create() + list annotate
     )

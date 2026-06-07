@@ -6,6 +6,7 @@ from datetime import datetime
 from ryaa.providers.base import ToolCall, ToolSpec
 from ryaa.skills.base import AgentResult
 from ryaa.tools.calendar_tool import CalendarBackend, EventDetails
+from ryaa.tools.event_state import EventStore
 from pydantic import BaseModel, Field
 
 class ListEventsArgs(BaseModel):
@@ -36,15 +37,18 @@ class CalendarSkill:
   name = "calendar"
   description = "Create and check calendar events."
 
-  def __init__(self, backend: CalendarBackend):
+  def __init__(self, backend: CalendarBackend, store: EventStore | None = None):
     self.backend = backend
+    self.store = store
 
   def instructions(self) -> str:
     return (
       "If a day, time, or duration is missing, ask ONE short question. "
       "Call list_events to check availability before proposing. "
       "When you know name + start + duration, call propose_event "
-      "(the user confirms separately). Resolve relative dates against today."
+      "(the user confirms separately). Resolve relative dates against today. "
+      "Listed events carry a state: 'created'/'modified' means you scheduled or changed it, "
+      "'external' means it was already on the calendar — mention this when it helps."
     )
 
   def tools(self) -> list[ToolSpec]:
@@ -60,7 +64,18 @@ class CalendarSkill:
       events = self.backend.list_events(start, end)
       if not events:
         return "No events in that window."
-      return json.dumps([{"name": e.name, "start": e.start.isoformat(), "duration_minutes": e.duration_minutes} for e in events])
+      for e in events:
+        e.state = self.store.get(e.id) if self.store else None
+      return json.dumps([
+        {
+          "id": e.id,
+          "name": e.name,
+          "start": e.start.isoformat(),
+          "duration_minutes": e.duration_minutes,
+          "state": e.state.status if e.state else "external",
+        }
+        for e in events
+      ])
     return f"Unknown tool: {call.name}"
 
 def _summary(event: EventDetails) -> str:

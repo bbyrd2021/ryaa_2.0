@@ -20,12 +20,13 @@ class ProposeResult(BaseModel):
 
 
 class Scheduler:
-    def __init__(self, guardrails, calendar, backend, confirmer=None, agent=None):
+    def __init__(self, guardrails, calendar, backend, confirmer=None, agent=None, store=None):
         self.guardrails = guardrails
         self.calendar = calendar
         self.backend = backend
         self.confirmer = confirmer
         self.agent = agent
+        self.store = store
 
     def chat(self, history: list[Message]) -> ProposeResult:
         # NOTE: the old calendar guardrail gate is intentionally dropped here. 
@@ -54,6 +55,8 @@ class Scheduler:
 
     def create(self, event: EventDetails) -> ScheduleResult:
         event_id = self.backend.create_event(event)
+        if self.store is not None:
+            self.store.mark_created(event_id)
         return ScheduleResult(
             status="created", message=f"Created '{event.name}'.", event_id=event_id
         )

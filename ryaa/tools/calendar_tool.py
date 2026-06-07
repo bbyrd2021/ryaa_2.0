@@ -19,6 +19,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from ryaa.providers.base import LLMProvider, Message
+from ryaa.tools.event_state import EventState
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,12 @@ class EventConfirmation(BaseModel):
         description="Natural language confirmation message"
     )
 
+
+class EventRef(EventDetails):
+    """An existing event = EventDetails' content (inherited) + its id + optional RYAA state."""
+
+    id: str
+    state: EventState | None = None  # provenance from the store; None = pre-existing/external
 
 # --------------------------------------------------------------------------- #
 # The LLM parser (workflow-era brain; used by the CLI path)
@@ -189,7 +196,7 @@ class CalendarBackend(Protocol):
     """Contract for 'somewhere events get created.' Stub now, Outlook later."""
 
     def create_event(self, event: EventDetails) -> str: ...  # returns the event ID
-    def list_events(self, start: datetime, end: datetime) -> list[EventDetails]: ...
+    def list_events(self, start: datetime, end: datetime) -> list[EventRef]: ...
 
 
 class StubCalendar:
@@ -197,13 +204,15 @@ class StubCalendar:
 
     # Illustrative fixtures (next Tuesday relative to early June 2026).
     _FAKE_EVENTS = [
-        EventDetails(
+        EventRef(
+            id="stub-standup",
             name="Team standup",
             start=datetime(2026, 6, 9, 9, 0),
             duration_minutes=30,
             participants=["Team"],
         ),
-        EventDetails(
+        EventRef(
+            id="stub-dentist",
             name="Dentist",
             start=datetime(2026, 6, 9, 12, 0),
             duration_minutes=60,
@@ -220,7 +229,7 @@ class StubCalendar:
         )
         return "stub-event-id"
 
-    def list_events(self, start: datetime, end: datetime) -> list[EventDetails]:
+    def list_events(self, start: datetime, end: datetime) -> list[EventRef]:
         return [e for e in self._FAKE_EVENTS if start <= e.start <= end]
 
 
@@ -239,24 +248,25 @@ class AppleCalendar:
             raise RuntimeError(f"Calendar create failed: {result.stderr.strip()}")
         return result.stdout.strip()
 
-    def list_events(self, start: datetime, end: datetime) -> list[EventDetails]:
+    def list_events(self, start: datetime, end: datetime) -> list[EventRef]:
         script = _build_list_script(self.calendar_name, start, end)
         result = subprocess.run(
             ["osascript", "-e", script], capture_output=True, text=True
         )
         if result.returncode != 0:
             raise RuntimeError(f"Calendar list failed: {result.stderr.strip()}")
-        events: list[EventDetails] = []
+        events: list[EventRef] = []
         for line in result.stdout.splitlines():
             line = line.strip()
             if not line:
                 continue
             parts = line.split("\t")
-            if len(parts) != 3:
+            if len(parts) != 4:
                 continue
-            name, secs, dur = parts
+            name, secs, dur, uid = parts
             events.append(
-                EventDetails(
+                EventRef(
+                    id=uid,
                     name=name,
                     start=datetime(1970, 1, 1) + timedelta(seconds=float(secs)),
                     duration_minutes=int(float(dur)),
@@ -301,7 +311,7 @@ def _build_list_script(cal, start, end):
                     set en to end date of e
                     set secs to (s - refDate)
                     set durMin to ((en - s) / 60) as integer
-                    set out to out & (summary of e) & tab & secs & tab & durMin & linefeed
+                    set out to out & (summary of e) & tab & secs & tab & durMin & tab & (uid of e) & linefeed
                 end repeat
             end tell
         end tell
