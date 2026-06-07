@@ -1,0 +1,62 @@
+@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Quicksand:wght@600;700&display=swap");
+
+:root {
+  --aqua: #2fb3d9;
+  --aqua-deep: #0f88b3;
+  --ink: #143442;
+  --muted: #5d7682;
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-soft: rgba(255, 255, 255, 0.42);
+  --hairline: rgba(255, 255, 255, 0.75);
+  --user-tint: rgba(86, 204, 240, 0.26);
+
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-display: "Quicksand", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* campy Frutiger-Aero: glossy sky -> aqua -> fresh green, with corner light blooms.
+     Saturated + layered on purpose, so the translucent glass bubbles read against it. */
+  background:
+    radial-gradient(120% 80% at 78% -12%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%),
+    radial-gradient(85% 55% at 12% 2%, rgba(255, 247, 205, 0.55), rgba(255, 247, 205, 0) 50%),
+    radial-gradient(75% 70% at 0% 100%, rgba(75, 214, 240, 0.5), rgba(75, 214, 240, 0) 55%),
+    radial-gradient(78% 70% at 100% 100%, rgba(125, 226, 150, 0.5), rgba(125, 226, 150, 0) 55%),
+    linear-gradient(165deg, #8fd8f5 0%, #6ec9e6 38%, #7fd9b8 72%, #a6e8a0 100%);
+  background-attachment: fixed;
+}
+
+/* (3D orbs now live as real elements — see `.orbs` / `.orb` in App.css) */
+
+/* subtle film grain over the gradient */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}

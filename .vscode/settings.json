@@ -4,6 +4,11 @@
   "python-envs.pythonProjects": [],
   "python.defaultInterpreterPath": "/opt/anaconda3/envs/ryaa/bin/python",
 
+  // --- Use the project's TypeScript (frontend/node_modules), not Cursor's bundled one ---
+  // Without this, the editor's older TS flags valid options (erasableSyntaxOnly, es2023)
+  // as errors even though `tsc -b` passes. Path is relative to this workspace root.
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+
   // --- Ruff is the ONE tool for both formatting and linting ---
   "[python]": {
     // Use the Ruff extension (charliermarsh.ruff) as the formatter, so
