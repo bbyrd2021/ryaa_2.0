@@ -163,9 +163,14 @@ class InMemoryEventStore:
 - Test the full modify flow with fakes: "move the dentist to 1pm" → find → propose_modification →
   confirm → `update_event` called + store shows `modified`.
 
-### Phase E — real device (later)
-Real osascript for `find_events` / `update_event`, and `uid` in `AppleCalendar.list_events`. Verify
-on your machine before flipping `factory.py` to `AppleCalendar()`.
+### Phase E — real device (mostly DONE)
+- `uid` in `AppleCalendar.list_events` — ✅ done (Phase A).
+- `AppleCalendar.update_event` osascript — ✅ done + **verified live** (Phase D nudge-and-restore).
+- `find_events` reuses `list_events` + a Python name filter on both backends — correct and verified.
+  A *native* osascript search (`whose summary contains …`) is the only optional remainder, and it's
+  marginal at personal-calendar scale (a near-duplicate of the list script). Left optional.
+
+**modify-events A–D are complete and on the real calendar.**
 
 ---
 

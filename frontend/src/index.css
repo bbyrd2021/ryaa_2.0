@@ -33,11 +33,18 @@ body {
   /* campy Frutiger-Aero: glossy sky -> aqua -> fresh green, with corner light blooms.
      Saturated + layered on purpose, so the translucent glass bubbles read against it. */
   background:
-    radial-gradient(120% 80% at 78% -12%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%),
-    radial-gradient(85% 55% at 12% 2%, rgba(255, 247, 205, 0.55), rgba(255, 247, 205, 0) 50%),
-    radial-gradient(75% 70% at 0% 100%, rgba(75, 214, 240, 0.5), rgba(75, 214, 240, 0) 55%),
-    radial-gradient(78% 70% at 100% 100%, rgba(125, 226, 150, 0.5), rgba(125, 226, 150, 0) 55%),
-    linear-gradient(165deg, #8fd8f5 0%, #6ec9e6 38%, #7fd9b8 72%, #a6e8a0 100%);
+    radial-gradient(120% 80% at 78% -12%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 42%),
+    radial-gradient(85% 55% at 12% 2%, rgba(255, 247, 205, 0.28), rgba(255, 247, 205, 0) 50%),
+    radial-gradient(75% 70% at 0% 100%, rgba(75, 214, 240, 0.24), rgba(75, 214, 240, 0) 55%),
+    radial-gradient(78% 70% at 100% 100%, rgba(125, 226, 150, 0.24), rgba(125, 226, 150, 0) 55%),
+    /* stops mixed ~30% toward a soft neutral → noticeably calmer */
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, #8fd8f5 70%, #d2dadd) 0%,
+      color-mix(in srgb, #6ec9e6 70%, #d2dadd) 38%,
+      color-mix(in srgb, #7fd9b8 70%, #d2dadd) 72%,
+      color-mix(in srgb, #a6e8a0 70%, #d2dadd) 100%
+    );
   background-attachment: fixed;
 }
 

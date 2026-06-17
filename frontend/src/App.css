@@ -7,6 +7,15 @@
   padding: 0 20px;
 }
 
+/* the hidden SVG that holds #glass-refraction (see App.tsx). 0×0 + absolute so
+   the filter defs never take up layout space. */
+.glass-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 /* ── Header (sticky, frosted) ───────────────────────────────── */
 .app__header {
   position: sticky;
@@ -88,7 +97,12 @@
 .msg {
   display: flex;
   max-width: 78%;
-  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* No `both`/`forwards` fill on purpose: a RETAINED transform on .msg (the bubble's
+     ancestor) becomes a "backdrop root" and stops the bubble's backdrop-filter lens
+     from sampling the page behind it. Default fill reverts .msg to no transform once
+     the entry animation ends, so the lens can see the backdrop. (Resting state is
+     visually identical — opacity 1, translateY 0 — so there's no flash.) */
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .msg--user {
   align-self: flex-end;
@@ -163,6 +177,53 @@
   }
 }
 
+/* ── Real refraction (Aave "Building glass for the web") ─────────────────────
+   The per-element feDisplacementMap lens is applied from JS (Glass.tsx) via an
+   inline backdrop-filter; when it's live, Glass adds `.is-lensed` to the element.
+   The only CSS job here is to THIN the fills on lensed elements — the flat frost
+   rules above are a milky white that would hide the refraction. The higher
+   specificity (extra class) means these win over the base fills above.
+   Non-Chromium / reduced-transparency never get `.is-lensed`, so they keep the
+   frost. (A web approximation of Apple's Liquid Glass, not an official technique.) */
+.msg--assistant .bubble.is-lensed {
+  background: rgba(255, 255, 255, 0.14);
+}
+.msg--user .bubble.is-lensed {
+  background: rgba(86, 204, 240, 0.16);
+}
+.app__header.is-lensed,
+.composer.is-lensed {
+  background: rgba(255, 255, 255, 0.12);
+}
+.composer__input.is-lensed {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* a11y override — must come AFTER the @supports block so it wins. When the user
+   prefers reduced transparency, kill the lens and give bubbles + bars a solid,
+   legible fill (the supports block above just made the bars see-through, so they
+   need re-asserting here too). */
+@media (prefers-reduced-transparency: reduce) {
+  .bubble,
+  .app__header,
+  .composer,
+  .composer__input {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .msg--assistant .bubble,
+  .app__header,
+  .composer {
+    background: rgba(255, 255, 255, 0.92);
+  }
+  .composer__input {
+    background: rgba(255, 255, 255, 0.85);
+  }
+  .msg--user .bubble {
+    background: rgba(86, 204, 240, 0.5);
+  }
+}
+
 /* ── Frutiger-Aero 3D orbs (floating background spheres) ─────── */
 .orbs {
   position: fixed;
@@ -170,6 +231,10 @@
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  /* ease the saturation of the spheres to match the calmer background.
+     (.orbs is a sibling layer, not an ancestor of the bubbles, so this filter
+     doesn't affect their backdrop-filter lens.) */
+  filter: saturate(0.7);
 }
 .orb {
   position: absolute;
@@ -308,6 +373,74 @@
 }
 .composer__send:active {
   transform: translateY(0);
+}
+
+/* Mic toggle — secondary sibling of the send button. Idle = a translucent glass chip
+   with an aqua glyph; on = the same aqua gradient as send; listening = a soft pulsing
+   ring. Matches the composer's 44px / 14px-radius / specular conventions. */
+.composer__mic {
+  flex: none;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  color: var(--aqua-deep);
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.85),
+    0 4px 12px rgba(18, 70, 92, 0.1);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.composer__mic svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.composer__mic:hover {
+  transform: translateY(-1px);
+}
+.composer__mic:active {
+  transform: translateY(0);
+}
+.composer__mic.is-on {
+  color: #fff;
+  border-color: transparent;
+  background:
+    radial-gradient(
+      circle at 36% 26%,
+      rgba(255, 255, 255, 0.7),
+      rgba(255, 255, 255, 0) 45%
+    ),
+    linear-gradient(160deg, #5fd2f2 0%, var(--aqua) 52%, var(--aqua-deep) 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.85),
+    0 5px 14px rgba(15, 136, 179, 0.4);
+}
+/* pulse while actively listening (auto-stilled by the global reduced-motion rule) */
+.composer__mic.is-listening {
+  animation: mic-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.85),
+      0 5px 14px rgba(15, 136, 179, 0.4),
+      0 0 0 0 rgba(47, 179, 217, 0.45);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.85),
+      0 5px 14px rgba(15, 136, 179, 0.4),
+      0 0 0 8px rgba(47, 179, 217, 0);
+  }
 }
 
 /* ── Proposal actions (Confirm / Cancel) ────────────────────── */

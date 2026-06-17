@@ -28,3 +28,7 @@ frontend/node_modules/
 
 # --- OS noise ---
 .DS_Store
+
+# --- Local tooling / scratch ---
+.claude/settings.local.json
+scratch_agent.py

@@ -151,3 +151,13 @@ class OpenAIProvider:
             if tc.type == "function"
         ]
         return ModelTurn(text=msg.content or "", tool_calls=calls)
+
+
+    def transcribe(self, data: bytes, filename: str = "speech.wav") -> str:
+        """Whisper-family STT. `data` is raw WAV bytes from the browser's VAD clip."""
+        resp = self.client.audio.transcriptions.create(
+            model="gpt-4o-transcribe",            # better on names/times than whisper-1
+            file=(filename, data, "audio/wav"),
+        )
+        return resp.text
+

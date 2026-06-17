@@ -4,4 +4,5 @@ python-dotenv
 openai
 pydantic
 fastapi
+python-multipart
 uvicorn[standard]

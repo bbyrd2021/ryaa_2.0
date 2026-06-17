@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { Glass } from "./Glass";
+import { useVoice } from "./useVoice";
 import "./App.css";
 
 // Where the Python brain lives. The frontend (Vite, :5173) talks cross-port to
@@ -27,6 +30,22 @@ const WORKING_VERBS = [
   "summoning",
   "ruminating",
 ];
+
+// When a proposal is on the table and you're talking (not typing), a spoken "yes" /
+// "no" should drive the Confirm / Cancel buttons. This is a lightweight keyword
+// classifier for v1 — anything it doesn't recognize falls through to the brain as a
+// revision (e.g. "actually make it 1pm"). (Out of scope for now: an LLM intent check.)
+const AFFIRM = /\b(yes|yeah|yep|yup|sure|confirm|confirmed|do it|go ahead|sounds good|please do|ok|okay|book it)\b/i;
+const DENY = /\b(no|nope|nah|cancel|don'?t|do not|never mind|nevermind|forget it|stop)\b/i;
+
+function classifyConfirm(text: string): "confirm" | "cancel" | "none" {
+  const denied = DENY.test(text);
+  const affirmed = AFFIRM.test(text);
+  // If both/neither match, treat as ambiguous → let the brain handle it.
+  if (affirmed && !denied) return "confirm";
+  if (denied && !affirmed) return "cancel";
+  return "none";
+}
 
 type Role = "user" | "assistant";
 type ChatMessage = { role: Role; content: string };
@@ -82,6 +101,17 @@ function App() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // The voice loop's callbacks are stable and fire on later ticks, so they read these
+  // refs instead of the (possibly stale) `messages` / `pending` closures.
+  const messagesRef = useRef(messages);
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
   // Append one message. Uses the functional updater (prev => ...) so rapid
   // back-to-back appends never read a stale `messages`.
   function addMessage(msg: ChatMessage) {
@@ -96,17 +126,21 @@ function App() {
     setBusy(true);
   }
 
-  async function handleSend() {
-    const text = input.trim();
+  // The core send: append the user's turn, ask /propose, update the chat, and RETURN
+  // the assistant's reply text so the voice loop can speak it. Used by both the typed
+  // composer and spoken turns.
+  async function sendText(text: string): Promise<string> {
+    const trimmed = text.trim();
+    if (!trimmed) return "";
 
-    // Build the next transcript explicitly — setMessages is async, so we can't
-    // rely on `messages` already containing this turn when we fetch.
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const nextMessages = [...messages, userMsg];
+    // Build the next transcript explicitly — setMessages is async, and a spoken turn
+    // reads the live transcript from messagesRef (not the render closure).
+    const userMsg: ChatMessage = { role: "user", content: trimmed };
+    const nextMessages = [...messagesRef.current, userMsg];
     setMessages(nextMessages);
-    setInput("");
     startWorking();
 
+    let spoken: string;
     try {
       const res = await fetch(`${API}/propose`, {
         method: "POST",
@@ -120,76 +154,108 @@ function App() {
       });
       const data: ProposeResult = await res.json();
       if (data.status === "proposed" && data.event) {
-        addMessage({
-          role: "assistant",
-          content: data.summary ?? "Here's the plan:",
-        });
+        spoken = data.summary ?? "Here's the plan:";
+        addMessage({ role: "assistant", content: spoken });
         setPending({
           event: data.event,
           action: data.action,
           event_id: data.event_id,
         });
       } else if (data.status === "reply") {
-        addMessage({ role: "assistant", content: data.summary ?? "..." });
+        spoken = data.summary ?? "...";
+        addMessage({ role: "assistant", content: spoken });
       } else if (data.status === "rejected") {
-        addMessage({
-          role: "assistant",
-          content: data.reasons.join(" ") || "I can't schedule that one.",
-        });
+        spoken = data.reasons.join(" ") || "I can't schedule that one.";
+        addMessage({ role: "assistant", content: spoken });
       } else {
-        addMessage({
-          role: "assistant",
-          content: "That doesn't look like a calendar request.",
-        });
+        spoken = "That doesn't look like a calendar request.";
+        addMessage({ role: "assistant", content: spoken });
       }
     } catch {
-      addMessage({
-        role: "assistant",
-        content:
-          "I couldn't reach the scheduler — is the API running on :8000?",
-      });
+      spoken = "I couldn't reach the scheduler — is the API running on :8000?";
+      addMessage({ role: "assistant", content: spoken });
     } finally {
       setBusy(false);
     }
+    return spoken;
   }
 
-  // Step 2a: you said yes. Echo the proposed event back to /confirm, which
-  // actually creates the macOS Calendar event.
-  async function handleConfirm() {
-    if (!pending || busy) return;
+  async function handleSend() {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    const reply = await sendText(text);
+    await voice.speakReply(reply); // spoken aloud only when voice mode is on
+  }
+
+  // Step 2a: you said yes. Echo the proposed event back to /confirm, which actually
+  // creates the macOS Calendar event. Returns the result text for the voice loop.
+  async function confirmPending(): Promise<string> {
+    const p = pendingRef.current;
+    if (!p) return "";
     startWorking();
+    let spoken: string;
     try {
       const res = await fetch(`${API}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pending),
+        body: JSON.stringify(p),
       });
       const data: ScheduleResult = await res.json();
-      addMessage({ role: "assistant", content: data.message });
+      spoken = data.message;
+      addMessage({ role: "assistant", content: spoken });
     } catch {
-      addMessage({
-        role: "assistant",
-        content: "Something went wrong creating the event.",
-      });
+      spoken = "Something went wrong creating the event.";
+      addMessage({ role: "assistant", content: spoken });
     } finally {
       setPending(null);
       setBusy(false);
     }
+    return spoken;
   }
 
   // Step 2b: you said no. Drop the proposal client-side — no call, nothing created.
-  function handleCancel() {
+  function cancelPending(): string {
     setPending(null);
-    addMessage({
-      role: "assistant",
-      content: "Okay — cancelled. Nothing was created.",
-    });
+    const spoken = "Okay — cancelled. Nothing was created.";
+    addMessage({ role: "assistant", content: spoken });
+    return spoken;
   }
+
+  async function handleConfirm() {
+    if (!pending || busy) return;
+    const reply = await confirmPending();
+    await voice.speakReply(reply);
+  }
+
+  async function handleCancel() {
+    const reply = cancelPending();
+    await voice.speakReply(reply);
+  }
+
+  // A finished spoken turn. If a proposal is pending, "yes"/"no" drive Confirm/Cancel;
+  // otherwise it's a normal request. Returns the reply text for useVoice to speak.
+  async function handleVoiceTranscript(text: string): Promise<string> {
+    if (pendingRef.current) {
+      const intent = classifyConfirm(text);
+      if (intent === "confirm") return confirmPending();
+      if (intent === "cancel") return cancelPending();
+      // ambiguous → fall through; the brain treats it as a revision
+    }
+    return sendText(text);
+  }
+
+  const voice = useVoice({ onTranscript: handleVoiceTranscript });
 
   const locked = busy || pending !== null;
 
   return (
     <div className="app">
+      {/* Glass refraction lives in <Glass> (Glass.tsx + lens.ts): the Aave
+          "Building glass for the web" technique — a per-element feDisplacementMap
+          lens generated from a rounded-rect height field, so the backdrop curves
+          through it. Chromium-only; Safari/Firefox keep the CSS frosted fallback.
+          A web approximation of Apple's Liquid Glass, not an official technique. */}
       <div className="orbs" aria-hidden="true">
         <span className="orb orb--1" />
         <span className="orb orb--2" />
@@ -198,23 +264,23 @@ function App() {
         <span className="orb orb--5" />
       </div>
 
-      <header className="app__header">
+      <Glass as="header" className="app__header" radius={18} frost={5}>
         <div className="brand">
           <span className="brand__dot" />
           <h1 className="brand__name">RYAA</h1>
         </div>
         <p className="brand__tag">Real-time Yielding Autonomous Agent</p>
-      </header>
+      </Glass>
 
       <main className="chat">
         {messages.map((m, i) => (
           <div key={i} className={`msg msg--${m.role}`}>
-            <div className="bubble">
+            <Glass className="bubble" radius={16}>
               <span className="bubble__who">
                 {m.role === "user" ? "You" : "RYAA"}
               </span>
               {m.content}
-            </div>
+            </Glass>
           </div>
         ))}
 
@@ -243,15 +309,36 @@ function App() {
           </div>
         )}
 
+        {/* Voice status — only while in voice mode and the brain isn't already
+            showing the "thinking" indicator above. */}
+        {voice.voiceOn && !busy && voice.state !== "off" && (
+          <div className={`working working--voice working--${voice.state}`} aria-live="polite">
+            <span className="working__bead" aria-hidden="true" />
+            <span className="working__text">
+              {voice.state === "speaking"
+                ? "RYAA is speaking"
+                : voice.state === "transcribing"
+                  ? "Got that…"
+                  : "Listening"}
+            </span>
+            <span className="working__dots" aria-hidden="true" />
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </main>
 
-      <footer className="composer">
-        <input
+      <Glass as="footer" className="composer" radius={18} frost={5}>
+        <Glass
+          as="input"
           className="composer__input"
+          radius={14}
+          frost={5}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setInput(e.target.value)
+          }
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === "Enter") handleSend();
           }}
           placeholder={
@@ -259,6 +346,31 @@ function App() {
           }
           disabled={locked}
         />
+        {voice.supported && (
+          <button
+            className={`composer__mic${voice.voiceOn ? " is-on" : ""}${
+              voice.state === "listening" ? " is-listening" : ""
+            }`}
+            onClick={voice.toggle}
+            aria-pressed={voice.voiceOn}
+            aria-label={voice.voiceOn ? "Turn off voice" : "Talk to RYAA"}
+            title={voice.voiceOn ? "Voice on — tap to stop" : "Talk to RYAA"}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"
+                fill="currentColor"
+              />
+              <path
+                d="M5 11a7 7 0 0 0 14 0M12 18v3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
         <button
           className="composer__send"
           onClick={handleSend}
@@ -267,7 +379,7 @@ function App() {
         >
           ➤
         </button>
-      </footer>
+      </Glass>
     </div>
   );
 }

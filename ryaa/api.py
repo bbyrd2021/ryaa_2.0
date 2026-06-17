@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import logging
 from typing import Literal
+import os
+import requests
 
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -12,6 +15,7 @@ from ryaa.factory import build_scheduler
 from ryaa.orchestrator import ProposeResult, ScheduleResult
 from ryaa.providers.base import Message
 from ryaa.tools.calendar_tool import EventDetails
+from ryaa.providers.openai_provider import OpenAIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,18 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["*"],
 )
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")
+voice_provider = OpenAIProvider()
+
+
+class TranscribeResult(BaseModel):
+    text: str
+
+
+class SpeakRequest(BaseModel):
+    text: str
 
 class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
@@ -56,3 +72,35 @@ def confirm(req: ConfirmRequest) -> ScheduleResult:
     except RuntimeError as e:
         logger.warning("Confirm failed: %s", e)
         return ScheduleResult(status="failed", message=str(e))
+
+@app.post("/transcribe")
+def transcribe(file: UploadFile = File(...)) -> TranscribeResult:
+    data = file.file.read()
+    if not data:
+        return TranscribeResult(text="")
+    text = voice_provider.transcribe(data, file.filename or "speech.wav")
+    return TranscribeResult(text=text)
+
+
+@app.post("/speak")
+def speak(req: SpeakRequest):
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(503, "ELEVENLABS_API_KEY not configured")
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream"
+    headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
+    params = {"output_format": "mp3_44100_128"}
+    payload = {
+        "text": req.text,
+        "model_id": "eleven_flash_v2_5",
+        "voice_settings": {
+            "stability": 0.45, "similarity_boost": 0.75,
+            "style": 0.0, "use_speaker_boost": True, "speed": 1.0,
+        },
+    }
+
+    # stream=True returns once headers arrive → surface a bad key/quota before streaming.
+    r = requests.post(url, headers=headers, params=params, json=payload, stream=True)
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, r.text)
+    return StreamingResponse(r.iter_content(chunk_size=4096), media_type="audio/mpeg")

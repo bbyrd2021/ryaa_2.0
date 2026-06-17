@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# VAD runtime assets — generated from node_modules by scripts/copy-vad-assets.mjs (postinstall)
+public/vad
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

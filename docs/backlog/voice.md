@@ -1,7 +1,7 @@
 # Backlog: Voice (speech in + spoken replies)
 
 **Priority:** FRONT OF QUEUE (Brandon, 2026-06-06) — ahead of modify-events / Email roadmap.
-**Status:** captured, not designed.
+**Status:** designed & frontend built → see [`../specs/voice.md`](../specs/voice.md). Backend endpoints pending.
 
 ## Goal
 Talk to RYAA and have it talk back — speech-to-text for input, text-to-speech for replies.

@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node scripts/copy-vad-assets.mjs"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.30",
+    "onnxruntime-web": "^1.26.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
