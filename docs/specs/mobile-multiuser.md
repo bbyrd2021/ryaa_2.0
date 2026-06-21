@@ -205,8 +205,9 @@ port to React Native. The flow + API contract port; the UI is rebuilt.
 - **Phase 1 — DB foundation.** ✅ DONE (2026-06-20). SQLModel; `User` + `ProviderConnection`; SQLite
   local → Railway Postgres (`postgresql+psycopg://`); `init_db()` via `create_all()` in the FastAPI
   `lifespan`. Verified: tables created against Postgres in the cloud.
-- **Phase 2 — Identity.** ⬅ NEXT. `current_user` (Google ID-token verify); first sign-in provisions a `User`.
-- **Phase 3 — Connect + Calendar.** Scheduling-bundle OAuth → encrypted refresh token in
+- **Phase 2 — Identity.** ✅ DONE (2026-06-20). `current_user` (Google ID-token verify); first sign-in
+  provisions a `User`. Verified local + cloud (Railway). `GOOGLE_CLIENT_ID` read lazily (import-order).
+- **Phase 3 — Connect + Calendar.** ⬅ NEXT. Scheduling-bundle OAuth → encrypted refresh token in
   `ProviderConnection`; `GoogleCalendarBackend` (incl. `extendedProperties` provenance); per-user
   `build_scheduler_for`; remove `AppleCalendar` from the hosted path; collapse the `EventStore` seam.
 - **Phase 4 — Tasks.** `GoogleTasksBackend`; rewire `TodoSkill` off the stub. Small add on the same connection.
@@ -230,5 +231,6 @@ port to React Native. The flow + API contract port; the UI is rebuilt.
 
 ## Open questions
 
-None — design converged. **Phases 0–1 are done** (deployed to Railway + Postgres persistence live);
-next concrete move is **Phase 2** (Google identity / `current_user` token-verify dependency).
+None — design converged. **Phases 0–2 are done** (deployed to Railway, Postgres persistence, Google
+identity — all live); next concrete move is **Phase 3** (connect calendar OAuth + `GoogleCalendarBackend`
++ per-user `build_scheduler_for`).
