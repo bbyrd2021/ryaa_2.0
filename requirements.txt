@@ -8,3 +8,4 @@ python-multipart
 uvicorn[standard]
 sqlmodel
 psycopg[binary]
+google-auth

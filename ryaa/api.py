@@ -7,12 +7,14 @@ from typing import Literal
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from ryaa.auth import current_user
 from ryaa.db import init_db
+from ryaa.db_models import User
 from ryaa.factory import build_scheduler
 from ryaa.orchestrator import ProposeResult, ScheduleResult
 from ryaa.providers.base import Message
@@ -75,13 +77,13 @@ class ConfirmRequest(BaseModel):
 
 
 @app.post("/propose")
-def propose(req: ProposeRequest) -> ProposeResult:
+def propose(req: ProposeRequest, user: User = Depends(current_user)) -> ProposeResult:
     history = [Message(role=m.role, content=m.content) for m in req.messages]
     return scheduler.chat(history)
 
 
 @app.post("/confirm")
-def confirm(req: ConfirmRequest) -> ScheduleResult:
+def confirm(req: ConfirmRequest, user: User = Depends(current_user)) -> ScheduleResult:
     try:
         if req.action == "modify" and req.event_id:
             return scheduler.update(req.event_id, req.event)
