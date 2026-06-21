@@ -1,28 +1,41 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
 import os
-import requests
+from contextlib import asynccontextmanager
+from typing import Literal
 
-from fastapi.responses import StreamingResponse
+import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from ryaa.db import init_db
 from ryaa.factory import build_scheduler
 from ryaa.orchestrator import ProposeResult, ScheduleResult
 from ryaa.providers.base import Message
-from ryaa.tools.calendar_tool import EventDetails
 from ryaa.providers.openai_provider import OpenAIProvider
+from ryaa.tools.calendar_tool import EventDetails
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 scheduler = build_scheduler()
 
-app = FastAPI(title="RYAA API", description="API for the RYAA scheduling assistant")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()  # create tables on startup; create_all is a no-op if they already exist
+    yield
+
+
+app = FastAPI(
+    title="RYAA API",
+    description="API for the RYAA scheduling assistant",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,12 +56,16 @@ class TranscribeResult(BaseModel):
 class SpeakRequest(BaseModel):
     text: str
 
+
 class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
     content: str
 
+
 class ProposeRequest(BaseModel):
-    messages: list[ChatTurn] = Field(description="The whole transcript the browser holds")
+    messages: list[ChatTurn] = Field(
+        description="The whole transcript the browser holds"
+    )
 
 
 class ConfirmRequest(BaseModel):
@@ -73,6 +90,7 @@ def confirm(req: ConfirmRequest) -> ScheduleResult:
         logger.warning("Confirm failed: %s", e)
         return ScheduleResult(status="failed", message=str(e))
 
+
 @app.post("/transcribe")
 def transcribe(file: UploadFile = File(...)) -> TranscribeResult:
     data = file.file.read()
@@ -94,8 +112,11 @@ def speak(req: SpeakRequest):
         "text": req.text,
         "model_id": "eleven_flash_v2_5",
         "voice_settings": {
-            "stability": 0.45, "similarity_boost": 0.75,
-            "style": 0.0, "use_speaker_boost": True, "speed": 1.0,
+            "stability": 0.45,
+            "similarity_boost": 0.75,
+            "style": 0.0,
+            "use_speaker_boost": True,
+            "speed": 1.0,
         },
     }
 
@@ -104,3 +125,9 @@ def speak(req: SpeakRequest):
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text)
     return StreamingResponse(r.iter_content(chunk_size=4096), media_type="audio/mpeg")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield

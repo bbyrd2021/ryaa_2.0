@@ -7,7 +7,9 @@ from ryaa.tools.calendar_tool import EventDetails
 
 
 class ScheduleResult(BaseModel):
-    status: Literal["created", "modified", "rejected", "not_calendar", "cancelled", "failed"]
+    status: Literal[
+        "created", "modified", "rejected", "not_calendar", "cancelled", "failed"
+    ]
     message: str
     event_id: str | None = None
 
@@ -18,11 +20,13 @@ class ProposeResult(BaseModel):
     reasons: list[str] = []
     event: EventDetails | None = None
     action: Literal["create", "modify"] = "create"  # how /confirm should act
-    event_id: str | None = None                     # the event to modify (action == "modify")
+    event_id: str | None = None  # the event to modify (action == "modify")
 
 
 class Scheduler:
-    def __init__(self, guardrails, calendar, backend, confirmer=None, agent=None, store=None):
+    def __init__(
+        self, guardrails, calendar, backend, confirmer=None, agent=None, store=None
+    ):
         self.guardrails = guardrails
         self.calendar = calendar
         self.backend = backend
@@ -31,9 +35,9 @@ class Scheduler:
         self.store = store
 
     def chat(self, history: list[Message]) -> ProposeResult:
-        # NOTE: the old calendar guardrail gate is intentionally dropped here. 
+        # NOTE: the old calendar guardrail gate is intentionally dropped here.
         # RYAA is a general assistant now, so "not a calendar request" is no longer
-        # a rejection (it might todo, or just chat). A general security-only 
+        # a rejection (it might todo, or just chat). A general security-only
         # guardrail is a later refinement.
 
         if self.agent is None:

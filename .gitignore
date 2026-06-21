@@ -32,3 +32,8 @@ frontend/node_modules/
 # --- Local tooling / scratch ---
 .claude/settings.local.json
 scratch_agent.py
+
+# --- Local database ---
+*.db
+*.sqlite
+*.sqlite3

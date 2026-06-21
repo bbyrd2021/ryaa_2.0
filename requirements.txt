@@ -6,3 +6,5 @@ pydantic
 fastapi
 python-multipart
 uvicorn[standard]
+sqlmodel
+psycopg[binary]
