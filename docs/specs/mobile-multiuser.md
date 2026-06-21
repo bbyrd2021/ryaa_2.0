@@ -199,10 +199,13 @@ port to React Native. The flow + API contract port; the UI is rebuilt.
 
 ## Build order (backend first)
 
-- **Phase 0 — Deploy single-user.** Swap `AppleCalendar`→`StubCalendar`, deploy to Railway, hit the URL.
-- **Phase 1 — DB foundation.** SQLModel; `User` + `ProviderConnection`; SQLite → Railway Postgres;
-  `create_all()` on startup.
-- **Phase 2 — Identity.** `current_user` (Google ID-token verify); first sign-in provisions a `User`.
+- **Phase 0 — Deploy single-user.** ✅ DONE (2026-06-17). Swap `AppleCalendar`→`StubCalendar`
+  (`RYAA_CALENDAR=stub` env toggle), deploy to Railway, hit the URL. Live at
+  `https://web-production-7f7d88.up.railway.app`.
+- **Phase 1 — DB foundation.** ✅ DONE (2026-06-20). SQLModel; `User` + `ProviderConnection`; SQLite
+  local → Railway Postgres (`postgresql+psycopg://`); `init_db()` via `create_all()` in the FastAPI
+  `lifespan`. Verified: tables created against Postgres in the cloud.
+- **Phase 2 — Identity.** ⬅ NEXT. `current_user` (Google ID-token verify); first sign-in provisions a `User`.
 - **Phase 3 — Connect + Calendar.** Scheduling-bundle OAuth → encrypted refresh token in
   `ProviderConnection`; `GoogleCalendarBackend` (incl. `extendedProperties` provenance); per-user
   `build_scheduler_for`; remove `AppleCalendar` from the hosted path; collapse the `EventStore` seam.
@@ -227,5 +230,5 @@ port to React Native. The flow + API contract port; the UI is rebuilt.
 
 ## Open questions
 
-None — design converged. Next concrete move is **Phase 0** (deploy the current backend to Railway with
-the `StubCalendar` swap), which is independent of everything above.
+None — design converged. **Phases 0–1 are done** (deployed to Railway + Postgres persistence live);
+next concrete move is **Phase 2** (Google identity / `current_user` token-verify dependency).
