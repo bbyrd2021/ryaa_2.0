@@ -9,3 +9,5 @@ uvicorn[standard]
 sqlmodel
 psycopg[binary]
 google-auth
+google-api-python-client
+cryptography

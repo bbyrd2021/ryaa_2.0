@@ -84,6 +84,13 @@ granted scopes, feeding all three backends.
   ones **without a store**. *(This collapses the old `EventStore` seam into the backend; the
   `EventState` model survives as a return shape, `InMemoryEventStore`/`EventStore` Protocol /
   `SqlEventStore` proposed in an earlier draft are dropped.)*
+  - **Participants stay names, not emails** (that's how the agent extracts them from NL, e.g.
+    "lunch with Sam"). Google `attendees` need real emails, so participant names round-trip via
+    `extendedProperties.ryaa_participants` instead — they label the event, they don't invite anyone.
+  - *Future enhancement (backlog, not v1):* **real calendar invites.** When RYAA actually needs to
+    invite someone, it just **asks the user for the email conversationally** (same clarification flow
+    it uses for a missing time) — no Contacts/People API needed. Evolve `participants` toward emails
+    then.
 - **`GoogleTasksBackend`** (`TasksBackend`) — todos, via the Google Tasks API. **Resolves the old
   "Todo table" question:** todos are source-of-truth on Google, **no DB table**. `TodoSkill` is rewired
   off `StubTodos` onto this backend.
@@ -234,3 +241,163 @@ port to React Native. The flow + API contract port; the UI is rebuilt.
 None — design converged. **Phases 0–2 are done** (deployed to Railway, Postgres persistence, Google
 identity — all live); next concrete move is **Phase 3** (connect calendar OAuth + `GoogleCalendarBackend`
 + per-user `build_scheduler_for`).
+
+---
+
+## Phase 3 — reference implementation (3b + 3c, type these in verbatim)
+
+Complete code for the encryption helper and the Google Calendar backend. Type into the named files.
+
+### Deps + env (do first)
+- `requirements.txt`: add `cryptography` and `google-api-python-client` (`google-auth` already present),
+  then `pip install` them in the `ryaa` env.
+- Generate the Fernet key:
+  ```
+  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  ```
+  Add to `.env` (and Railway later): `CREDENTIALS_ENC_KEY=<that key>`. (`GOOGLE_CLIENT_SECRET` is
+  already in `.env`.)
+
+### 3b — `ryaa/crypto.py` (new file)
+```python
+import os
+
+from cryptography.fernet import Fernet
+
+
+def _fernet() -> Fernet:
+    # read the key lazily (not at import) so load_dotenv() has already run
+    return Fernet(os.environ["CREDENTIALS_ENC_KEY"])
+
+
+def encrypt(plaintext: str) -> str:
+    return _fernet().encrypt(plaintext.encode()).decode()
+
+
+def decrypt(ciphertext: str) -> str:
+    return _fernet().decrypt(ciphertext.encode()).decode()
+```
+
+### 3c — `ryaa/tools/google_calendar.py` (new file)
+```python
+import json
+import os
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
+from ryaa.tools.calendar_tool import EventDetails, EventRef
+from ryaa.tools.event_state import EventState
+
+_TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+def _parse_when(when: dict) -> datetime:
+    # timed events have {"dateTime": ...}; all-day events have {"date": ...}
+    raw = when.get("dateTime") or when["date"]
+    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+
+
+class GoogleCalendarBackend:
+    """CalendarBackend backed by a user's real Google Calendar (refresh-token creds)."""
+
+    def __init__(self, refresh_token: str, timezone: str = "America/New_York"):
+        self._creds = Credentials(
+            token=None,  # no access token yet — refreshed automatically on first call
+            refresh_token=refresh_token,
+            token_uri=_TOKEN_URI,
+            client_id=os.environ["GOOGLE_CLIENT_ID"],
+            client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        )
+        self._svc = build(
+            "calendar", "v3", credentials=self._creds, cache_discovery=False
+        )
+        self._tz = timezone
+        self._zone = ZoneInfo(timezone)
+        self._cal = "primary"
+
+    def create_event(self, event: EventDetails) -> str:
+        body = self._body(event, status="created")
+        created = self._svc.events().insert(calendarId=self._cal, body=body).execute()
+        return created["id"]
+
+    def update_event(self, event_id: str, event: EventDetails) -> str:
+        body = self._body(event, status="modified")
+        updated = (
+            self._svc.events()
+            .patch(calendarId=self._cal, eventId=event_id, body=body)
+            .execute()
+        )
+        return updated["id"]
+
+    def list_events(self, start: datetime, end: datetime) -> list[EventRef]:
+        return self._query(start, end, query=None)
+
+    def find_events(self, query: str, start: datetime, end: datetime) -> list[EventRef]:
+        return self._query(start, end, query=query)
+
+    # ---- helpers ----
+
+    def _body(self, event: EventDetails, status: str) -> dict:
+        end = event.start + timedelta(minutes=event.duration_minutes)
+        return {
+            "summary": event.name,
+            "start": {"dateTime": event.start.isoformat(), "timeZone": self._tz},
+            "end": {"dateTime": end.isoformat(), "timeZone": self._tz},
+            "extendedProperties": {
+                "private": {
+                    "ryaa": "1",
+                    "ryaa_status": status,
+                    "ryaa_participants": json.dumps(event.participants),
+                }
+            },
+        }
+
+    def _query(
+        self, start: datetime, end: datetime, query: str | None
+    ) -> list[EventRef]:
+        params = {
+            "calendarId": self._cal,
+            "timeMin": self._rfc3339(start),
+            "timeMax": self._rfc3339(end),
+            "singleEvents": True,
+            "orderBy": "startTime",
+        }
+        if query:
+            params["q"] = query
+        resp = self._svc.events().list(**params).execute()
+        return [self._to_ref(e) for e in resp.get("items", [])]
+
+    def _rfc3339(self, dt: datetime) -> str:
+        # Google rejects naive datetimes for timeMin/timeMax — attach the backend's zone
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=self._zone)
+        return dt.isoformat()
+
+    def _to_ref(self, e: dict) -> EventRef:
+        start = _parse_when(e["start"])
+        end = _parse_when(e["end"])
+        priv = e.get("extendedProperties", {}).get("private", {})
+        state = None
+        if priv.get("ryaa") == "1":  # our event → populate provenance; else external → None
+            state = EventState(
+                status=priv.get("ryaa_status", "created"),
+                created_at=datetime.fromisoformat(e["created"].replace("Z", "+00:00")),
+                modified_at=datetime.fromisoformat(e["updated"].replace("Z", "+00:00")),
+            )
+        return EventRef(
+            id=e["id"],
+            name=e.get("summary", ""),
+            start=start,
+            duration_minutes=int((end - start).total_seconds() // 60),
+            participants=json.loads(priv.get("ryaa_participants", "[]")),
+            state=state,
+        )
+```
+
+**Before you run it:** change the `timezone` default to *your* IANA zone (e.g. `America/Chicago`) — in
+3e it gets fed from `User.timezone`, but for testing it's the constructor default. Note this hits your
+**real** calendar.
+
