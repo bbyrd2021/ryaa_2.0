@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ryaa.auth import current_user
+from ryaa.crypto import encrypt
 from ryaa.db import get_session, init_db
 from ryaa.db_models import ProviderConnection, User
 from ryaa.factory import build_scheduler_for
@@ -76,6 +77,13 @@ class ConfirmRequest(BaseModel):
     event_id: str | None = None  # the event to change (when action == "modify")
 
 
+class ConnectRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    code_verifier: str | None = None  # PKCE (Expo app sends this); optional for manual testing
+    timezone: str | None = None  # client's IANA tz (calendar.events can't read calendar metadata)
+
+
 def user_scheduler(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
@@ -91,6 +99,57 @@ def user_scheduler(
             409, "No calendar connected — connect Google Calendar first."
         )
     return build_scheduler_for(user, conn)
+
+
+@app.post("/connect/google")
+def connect_google(
+    req: ConnectRequest,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    # 1. exchange the one-time auth code for tokens
+    data = {
+        "code": req.code,
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+        "redirect_uri": req.redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    if req.code_verifier:
+        data["code_verifier"] = req.code_verifier
+    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
+    if resp.status_code != 200:
+        raise HTTPException(400, f"Token exchange failed: {resp.text}")
+    tokens = resp.json()
+
+    refresh_token = tokens.get("refresh_token")
+    if not refresh_token:
+        # Google only returns this on first consent — client must use access_type=offline + prompt=consent
+        raise HTTPException(
+            400,
+            "No refresh token returned; re-consent with offline access + prompt=consent.",
+        )
+
+    # 2. upsert the connection (encrypted) + set the user's timezone.
+    #    The client sends its device tz; calendar.events can't read calendar metadata,
+    #    so we don't fetch the calendar's tz server-side (would need a broader scope).
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None:
+        conn = ProviderConnection(user_id=user.id, provider="google")
+    conn.credentials = encrypt(refresh_token)
+    conn.scopes = tokens.get("scope", "")
+    if req.timezone:
+        user.timezone = req.timezone
+    session.add(conn)
+    session.add(user)
+    session.commit()
+
+    return {"connected": True, "timezone": user.timezone, "scopes": conn.scopes}
 
 
 @app.post("/propose")

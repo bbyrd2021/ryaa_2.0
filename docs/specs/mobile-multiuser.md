@@ -503,4 +503,81 @@ After typing these in, I'll run a **seed script** (encrypts your `.env` refresh 
 needed (that path is already proven in Phase 2). `AppleCalendar` stays in `build_scheduler()` for the
 CLI but is no longer in the hosted path.
 
+### 3d — `POST /connect/google` onboarding endpoint (type these in)
+
+Turns an OAuth **authorization code** (from the client) into a stored, encrypted `ProviderConnection`,
+and captures the user's real calendar timezone into `User.timezone`. The Expo app drives this in
+Phase 6; for now it's testable with a one-time code.
+
+**`ryaa/api.py`** — add import:
+```python
+from ryaa.crypto import encrypt   # NEW
+# (requests, os, select, Session, get_session, current_user, User, ProviderConnection,
+#  HTTPException already imported from earlier phases)
+```
+> Note: `calendar.events` can NOT read calendar metadata (`calendars().get` → 403), so we do **not**
+> fetch the calendar timezone server-side. The **client sends its device timezone** in the request.
+
+Add the request model + endpoint:
+```python
+class ConnectRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    code_verifier: str | None = None   # PKCE (Expo app sends this); optional for manual testing
+    timezone: str | None = None        # client's IANA tz (calendar.events can't read calendar metadata)
+
+
+@app.post("/connect/google")
+def connect_google(
+    req: ConnectRequest,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    # 1. exchange the one-time auth code for tokens
+    data = {
+        "code": req.code,
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+        "redirect_uri": req.redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    if req.code_verifier:
+        data["code_verifier"] = req.code_verifier
+    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
+    if resp.status_code != 200:
+        raise HTTPException(400, f"Token exchange failed: {resp.text}")
+    tokens = resp.json()
+
+    refresh_token = tokens.get("refresh_token")
+    if not refresh_token:
+        # Google only returns this on first consent — client must use access_type=offline + prompt=consent
+        raise HTTPException(400, "No refresh token returned; re-consent with offline access + prompt=consent.")
+
+    # 2. upsert the connection (encrypted) + set the user's timezone (client-supplied)
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None:
+        conn = ProviderConnection(user_id=user.id, provider="google")
+    conn.credentials = encrypt(refresh_token)
+    conn.scopes = tokens.get("scope", "")
+    if req.timezone:
+        user.timezone = req.timezone
+    session.add(conn)
+    session.add(user)
+    session.commit()
+
+    return {"connected": True, "timezone": user.timezone, "scopes": conn.scopes}
+```
+
+**Testing it** needs a fresh one-time auth code. The code→refresh-token exchange is the same mechanism
+the Playground already proved; the new parts are the **timezone capture** and the **DB upsert**. Two
+options: (a) smoke-test the error path (bogus code → `400`) right after you type it in, or (b) a full
+real test where you mint a one-time code and we watch a real `ProviderConnection` + `User.timezone`
+get written. The full happy path also gets exercised naturally when the Expo app lands (Phase 6).
+
+
 
