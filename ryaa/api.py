@@ -11,12 +11,13 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlmodel import Session, select
 
 from ryaa.auth import current_user
-from ryaa.db import init_db
-from ryaa.db_models import User
-from ryaa.factory import build_scheduler
-from ryaa.orchestrator import ProposeResult, ScheduleResult
+from ryaa.db import get_session, init_db
+from ryaa.db_models import ProviderConnection, User
+from ryaa.factory import build_scheduler_for
+from ryaa.orchestrator import ProposeResult, Scheduler, ScheduleResult
 from ryaa.providers.base import Message
 from ryaa.providers.openai_provider import OpenAIProvider
 from ryaa.tools.calendar_tool import EventDetails
@@ -24,7 +25,6 @@ from ryaa.tools.calendar_tool import EventDetails
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-scheduler = build_scheduler()
 
 
 @asynccontextmanager
@@ -76,14 +76,35 @@ class ConfirmRequest(BaseModel):
     event_id: str | None = None  # the event to change (when action == "modify")
 
 
+def user_scheduler(
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+) -> Scheduler:
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None or not conn.credentials:
+        raise HTTPException(
+            409, "No calendar connected — connect Google Calendar first."
+        )
+    return build_scheduler_for(user, conn)
+
+
 @app.post("/propose")
-def propose(req: ProposeRequest, user: User = Depends(current_user)) -> ProposeResult:
+def propose(
+    req: ProposeRequest, scheduler: Scheduler = Depends(user_scheduler)
+) -> ProposeResult:
     history = [Message(role=m.role, content=m.content) for m in req.messages]
     return scheduler.chat(history)
 
 
 @app.post("/confirm")
-def confirm(req: ConfirmRequest, user: User = Depends(current_user)) -> ScheduleResult:
+def confirm(
+    req: ConfirmRequest, scheduler: Scheduler = Depends(user_scheduler)
+) -> ScheduleResult:
     try:
         if req.action == "modify" and req.event_id:
             return scheduler.update(req.event_id, req.event)

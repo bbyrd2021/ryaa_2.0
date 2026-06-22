@@ -401,3 +401,106 @@ class GoogleCalendarBackend:
 3e it gets fed from `User.timezone`, but for testing it's the constructor default. Note this hits your
 **real** calendar.
 
+### 3e — per-user assembly + endpoint cutover (type these in)
+
+Three edits. The endpoints stop using the global single-user scheduler and build a per-user one from
+the caller's `ProviderConnection`. Provenance now lives on the Google event, so the per-user path uses
+**no store** (the CLI keeps its store; this is backward compatible).
+
+**1. `ryaa/skills/calendar_skill.py`** — in `_events_json`, don't overwrite the backend's state when
+there's no store. Replace the loop:
+```python
+        # OLD:
+        # for e in events:
+        #     e.state = self.store.get(e.id) if self.store else None
+        # NEW:
+        for e in events:
+            if self.store is not None:      # CLI store path: annotate from the store
+                e.state = self.store.get(e.id)
+            # no store (Google path): keep the state the backend already set
+```
+
+**2. `ryaa/factory.py`** — add these imports near the top and the new function at the bottom:
+```python
+from ryaa.crypto import decrypt
+from ryaa.db_models import ProviderConnection, User
+from ryaa.tools.google_calendar import GoogleCalendarBackend
+
+
+def build_scheduler_for(user: User, conn: ProviderConnection) -> Scheduler:
+    """Per-user Scheduler backed by the user's real Google Calendar."""
+    provider = OpenAIProvider()
+    backend = GoogleCalendarBackend(
+        refresh_token=decrypt(conn.credentials),
+        timezone=user.timezone or "America/New_York",
+    )
+    agent = Agent(provider=provider, skills=[CalendarSkill(backend), TodoSkill()])
+    return Scheduler(
+        guardrails=Guardrails(provider=provider),
+        calendar=CalendarParser(provider=provider),
+        backend=backend,
+        agent=agent,
+        # no store — provenance lives on the Google event (extendedProperties)
+    )
+```
+
+**3. `ryaa/api.py`** — cut the endpoints over to a per-user scheduler.
+
+Imports — adjust these lines:
+```python
+from sqlmodel import Session, select                                   # NEW
+from ryaa.db import get_session, init_db                               # add get_session
+from ryaa.db_models import ProviderConnection, User                    # add ProviderConnection
+from ryaa.factory import build_scheduler_for                           # replaces build_scheduler
+from ryaa.orchestrator import ProposeResult, Scheduler, ScheduleResult # add Scheduler
+```
+
+Delete the module-level line `scheduler = build_scheduler()` (no longer used — the global single-user
+scheduler is gone; each request builds its own).
+
+Add the dependency and update both endpoints (note: `user` is now consumed inside `user_scheduler`,
+so it drops off the endpoint signatures — auth is still enforced via the dependency chain):
+```python
+def user_scheduler(
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+) -> Scheduler:
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None or not conn.credentials:
+        raise HTTPException(409, "No calendar connected — connect Google Calendar first.")
+    return build_scheduler_for(user, conn)
+
+
+@app.post("/propose")
+def propose(
+    req: ProposeRequest, scheduler: Scheduler = Depends(user_scheduler)
+) -> ProposeResult:
+    history = [Message(role=m.role, content=m.content) for m in req.messages]
+    return scheduler.chat(history)
+
+
+@app.post("/confirm")
+def confirm(
+    req: ConfirmRequest, scheduler: Scheduler = Depends(user_scheduler)
+) -> ScheduleResult:
+    try:
+        if req.action == "modify" and req.event_id:
+            return scheduler.update(req.event_id, req.event)
+        return scheduler.create(req.event)
+    except RuntimeError as e:
+        logger.warning("Confirm failed: %s", e)
+        return ScheduleResult(status="failed", message=str(e))
+```
+
+After typing these in, I'll run a **seed script** (encrypts your `.env` refresh token into a
+`ProviderConnection` for your user) and a **direct test** that calls `build_scheduler_for(...)` →
+`scheduler.chat(...)` / `scheduler.create(...)` against your real calendar — no fresh `id_token`
+needed (that path is already proven in Phase 2). `AppleCalendar` stays in `build_scheduler()` for the
+CLI but is no longer in the hosted path.
+
+

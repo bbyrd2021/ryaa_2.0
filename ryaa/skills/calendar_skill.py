@@ -131,7 +131,9 @@ class CalendarSkill:
         if not events:
             return empty_msg
         for e in events:
-            e.state = self.store.get(e.id) if self.store else None
+            if self.store is not None:  # CLI store path: annotate from the store
+                e.state = self.store.get(e.id)
+            # no store (Google path): keep the state the backend already set
         return json.dumps(
             [
                 {
