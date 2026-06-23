@@ -17,6 +17,7 @@ from ryaa.tools.calendar_tool import (  # noqa: F401
 )
 from ryaa.tools.event_state import InMemoryEventStore
 from ryaa.tools.google_calendar import GoogleCalendarBackend
+from ryaa.tools.google_tasks import GoogleTasksBackend
 
 
 def build_scheduler(confirmer=None) -> Scheduler:
@@ -47,17 +48,16 @@ def build_scheduler(confirmer=None) -> Scheduler:
 
 
 def build_scheduler_for(user: User, conn: ProviderConnection) -> Scheduler:
-    """Per-user Scheduler backed by the user's real Google Calendar."""
     provider = OpenAIProvider()
-    backend = GoogleCalendarBackend(
-        refresh_token=decrypt(conn.credentials),
-        timezone=user.timezone or "America/Chicago",
+    refresh = decrypt(conn.credentials)
+    cal = GoogleCalendarBackend(
+        refresh_token=refresh, timezone=user.timezone or "America/New_York"
     )
-    agent = Agent(provider=provider, skills=[CalendarSkill(backend), TodoSkill()])
+    tasks = GoogleTasksBackend(refresh_token=refresh)
+    agent = Agent(provider=provider, skills=[CalendarSkill(cal), TodoSkill(tasks)])
     return Scheduler(
         guardrails=Guardrails(provider=provider),
         calendar=CalendarParser(provider=provider),
-        backend=backend,
+        backend=cal,
         agent=agent,
-        # no store — provenance lives on the Google event (extendedProperties)
     )

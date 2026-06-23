@@ -579,5 +579,181 @@ options: (a) smoke-test the error path (bogus code → `400`) right after you ty
 real test where you mint a one-time code and we watch a real `ProviderConnection` + `User.timezone`
 get written. The full happy path also gets exercised naturally when the Expo app lands (Phase 6).
 
+---
+
+## Phase 4 — reference implementation (Google Tasks, type these in)
+
+Todos move off the `StubTodos` stub onto the user's real Google Tasks — same refresh-token /
+`Credentials` pattern as the calendar backend, on the **same `ProviderConnection`** (the `tasks` scope
+is already granted). No DB table. Four edits.
+
+### 1. `ryaa/tools/todo_tool.py` (rewrite the whole file)
+```python
+from __future__ import annotations
+
+from typing import Protocol
+
+from pydantic import BaseModel
+
+
+class TaskItem(BaseModel):
+    id: str
+    title: str
+    completed: bool = False
+
+
+class TasksBackend(Protocol):
+    def add_task(self, title: str) -> str: ...  # returns the task id
+    def list_tasks(self, include_completed: bool = False) -> list[TaskItem]: ...
+
+
+class StubTasks:
+    """In-memory tasks backend for the CLI and tests."""
+
+    def __init__(self) -> None:
+        self._tasks: list[TaskItem] = []
+
+    def add_task(self, title: str) -> str:
+        tid = f"stub-task-{len(self._tasks) + 1}"
+        self._tasks.append(TaskItem(id=tid, title=title))
+        return tid
+
+    def list_tasks(self, include_completed: bool = False) -> list[TaskItem]:
+        return [t for t in self._tasks if include_completed or not t.completed]
+```
+
+### 2. `ryaa/tools/google_tasks.py` (new file)
+```python
+import os
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
+from ryaa.tools.todo_tool import TaskItem
+
+_TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+class GoogleTasksBackend:
+    """TasksBackend backed by the user's real Google Tasks (refresh-token creds)."""
+
+    def __init__(self, refresh_token: str):
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri=_TOKEN_URI,
+            client_id=os.environ["GOOGLE_CLIENT_ID"],
+            client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        )
+        self._svc = build("tasks", "v1", credentials=creds, cache_discovery=False)
+        self._list = "@default"  # the user's default task list
+
+    def add_task(self, title: str) -> str:
+        created = (
+            self._svc.tasks().insert(tasklist=self._list, body={"title": title}).execute()
+        )
+        return created["id"]
+
+    def list_tasks(self, include_completed: bool = False) -> list[TaskItem]:
+        resp = (
+            self._svc.tasks()
+            .list(tasklist=self._list, showCompleted=include_completed, showHidden=include_completed)
+            .execute()
+        )
+        return [
+            TaskItem(
+                id=t["id"],
+                title=t.get("title", ""),
+                completed=t.get("status") == "completed",
+            )
+            for t in resp.get("items", [])
+        ]
+```
+
+### 3. `ryaa/skills/todo_skill.py` (rewrite the whole file)
+```python
+from __future__ import annotations
+
+import json
+
+from pydantic import BaseModel, Field
+
+from ryaa.providers.base import ToolCall, ToolSpec
+from ryaa.tools.todo_tool import StubTasks, TasksBackend
+
+
+class AddTodoArgs(BaseModel):
+    text: str = Field(description="The to-do text")
+
+
+ADD_TODO = ToolSpec(
+    name="add_todo",
+    description="Add a to-do item to the user's Google Tasks.",
+    parameters=AddTodoArgs.model_json_schema(),
+)
+
+LIST_TODOS = ToolSpec(
+    name="list_todos",
+    description="List the user's current (incomplete) to-dos.",
+    parameters={"type": "object", "properties": {}},  # no args
+)
+
+
+class TodoSkill:
+    "SKILL: track to-dos in the user's Google Tasks."
+
+    name = "todos"
+    description = "Track to-do items."
+
+    def __init__(self, backend: TasksBackend | None = None):
+        self.backend = backend or StubTasks()
+
+    def instructions(self) -> str:
+        return (
+            "When the user wants to remember or track a task, call add_todo. "
+            "When they ask what's on their list / what they need to do, call list_todos."
+        )
+
+    def tools(self) -> list[ToolSpec]:
+        return [ADD_TODO, LIST_TODOS]
+
+    def run_tool(self, call: ToolCall) -> str:
+        if call.name == "add_todo":
+            args = AddTodoArgs.model_validate(call.arguments)
+            self.backend.add_task(args.text)
+            return f"Added to-do: {args.text!r}."
+        if call.name == "list_todos":
+            items = self.backend.list_tasks()
+            if not items:
+                return "No to-dos on the list."
+            return json.dumps([{"title": t.title, "completed": t.completed} for t in items])
+        return f"Unknown tool: {call.name}"
+```
+
+### 4. `ryaa/factory.py` — wire Google Tasks into the per-user assembly
+Add the import and update `build_scheduler_for` (decrypt once, build both backends):
+```python
+from ryaa.tools.google_tasks import GoogleTasksBackend   # NEW
+
+
+def build_scheduler_for(user: User, conn: ProviderConnection) -> Scheduler:
+    provider = OpenAIProvider()
+    refresh = decrypt(conn.credentials)
+    cal = GoogleCalendarBackend(refresh_token=refresh, timezone=user.timezone or "America/New_York")
+    tasks = GoogleTasksBackend(refresh_token=refresh)
+    agent = Agent(provider=provider, skills=[CalendarSkill(cal), TodoSkill(tasks)])
+    return Scheduler(
+        guardrails=Guardrails(provider=provider),
+        calendar=CalendarParser(provider=provider),
+        backend=cal,
+        agent=agent,
+    )
+```
+(`build_scheduler()` for the CLI keeps `TodoSkill()` — now defaulting to `StubTasks`.)
+
+After typing these in, I'll run a direct test (add → list → cleanup on your real Google Tasks) plus an
+agent chat ("add X to my to-dos" / "what's on my list?") to confirm the skill wiring.
+
+
 
 
