@@ -4,12 +4,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Literal
+from urllib.parse import urlencode
 
 import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -27,6 +28,13 @@ from ryaa.tools.calendar_tool import EventDetails
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+GOOGLE_SCOPES = (
+    "openid email profile "
+    "https://www.googleapis.com/auth/calendar.events "
+    "https://www.googleapis.com/auth/tasks"
+)
 
 
 @asynccontextmanager
@@ -89,6 +97,73 @@ class ConnectRequest(BaseModel):
     )
 
 
+def _connect_with_code(
+    code: str,
+    redirect_uri: str,
+    session: Session,
+    timezone: str | None = None,
+    code_verifier: str | None = None,
+) -> User:
+    """Exchange an auth code, upsert the user + encrypted refresh token, return the User."""
+    data = {
+        "code": code,
+        "client_id": os.environ["GOOGLE_CLIENT_SECRET"],
+        "client_secret": os.environ["GOOGLE_CLIENT_ID"],
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }
+
+    if code_verifier:
+        data["code_verifier"] = code_verifier
+    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
+
+    if resp.status_code != 200:
+        raise HTTPException(400, f"Token exchange failed: {resp.text}")
+    tokens = resp.json()
+
+    refresh_token = tokens.get("refresh_token")
+
+    if not refresh_token:
+        raise HTTPException(
+            400, "No refresh token; re-consent with offline access + prompt=consent."
+        )
+
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise HTTPException(400, "No id_token returned from Google.")
+
+    claims = verify_google_id_token(id_token)
+    sub = claims["sub"]
+    user = session.exec(
+        select(User).where(User.auth_provider == "google", User.provider_subject == sub)
+    ).first()
+
+    if user is None:
+        user = User(
+            auth_provider="google", provider_subject=sub, email=claims.get("email")
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None:
+        conn = ProviderConnection(user_id=user.id, provider="google")
+    conn.Credentials = encrypt(refresh_token)
+    conn.scopes = tokens.get("scope", "")
+    if timezone:
+        user.timezone = timezone
+    session.add(conn)
+    session.add(user)
+    session.commit()
+    return user
+
+
 def user_scheduler(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
@@ -106,65 +181,45 @@ def user_scheduler(
     return build_scheduler_for(user, conn)
 
 
-@app.post("/connect/google")
+app.post("/connect/google")
+
+
 def connect_google(req: ConnectRequest, session: Session = Depends(get_session)):
-    # No current_user — the one-time auth code itself proves identity.
-    data = {
-        "code": req.code,
-        "client_id": os.environ["GOOGLE_CLIENT_ID"],
-        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
-        "redirect_uri": req.redirect_uri,
-        "grant_type": "authorization_code",
-    }
-    if req.code_verifier:
-        data["code_verifier"] = req.code_verifier
-    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
-    if resp.status_code != 200:
-        raise HTTPException(400, f"Token exchange failed: {resp.text}")
-    tokens = resp.json()
-
-    refresh_token = tokens.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(
-            400, "No refresh token; re-consent with offline access + prompt=consent."
-        )
-    id_token = tokens.get("id_token")
-    if not id_token:
-        raise HTTPException(400, "No id_token returned from Google.")
-
-    # identify the user from the verified id_token
-    claims = verify_google_id_token(id_token)
-    sub = claims["sub"]
-    user = session.exec(
-        select(User).where(User.auth_provider == "google", User.provider_subject == sub)
-    ).first()
-    if user is None:
-        user = User(
-            auth_provider="google", provider_subject=sub, email=claims.get("email")
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-
-    # store the encrypted refresh token + timezone
-    conn = session.exec(
-        select(ProviderConnection).where(
-            ProviderConnection.user_id == user.id,
-            ProviderConnection.provider == "google",
-        )
-    ).first()
-    if conn is None:
-        conn = ProviderConnection(user_id=user.id, provider="google")
-    conn.credentials = encrypt(refresh_token)
-    conn.scopes = tokens.get("scope", "")
-    if req.timezone:
-        user.timezone = req.timezone
-    session.add(conn)
-    session.add(user)
-    session.commit()
-
-    # mint a backend session token the app uses for all future requests
+    user = _connect_with_code(
+        req.code, req.redirect_uri, session, req.timezone, req.code_verifier
+    )
     return {"session_token": issue_session(str(user.id)), "timezone": user.timezone}
+
+
+@app.get("/auth/google/start")
+def auth_google_start(return_url: str):
+    # return_url is the app's deep link (exp://… in Expo Go, ryaa://… in a real build)
+    if not (return_url.startswith("exp://") or return_url.startswith("ryaa://")):
+        raise HTTPException(400, "invalid return_url")
+    params = {
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "redirect_uri": f"{PUBLIC_BASE_URL}/auth/google/callback",
+        "response_type": "code",
+        "scope": GOOGLE_SCOPES,
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": return_url,  # round-tripped so the callback knows where to send the user back
+    }
+    return RedirectResponse(
+        "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+    )
+
+
+@app.get("/auth/google/callback")
+def auth_google_callback(
+    code: str, state: str, session: Session = Depends(get_session)
+):
+    user = _connect_with_code(code, f"{PUBLIC_BASE_URL}/auth/google/callback", session)
+    token = issue_session(str(user.id))
+    sep = "&" if "?" in state else "?"
+    return RedirectResponse(
+        f"{state}{sep}session_token={token}"
+    )  # deep-link back to the app
 
 
 @app.post("/propose")

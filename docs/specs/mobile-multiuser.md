@@ -884,6 +884,143 @@ After typing these in, I'll test backend-side with a fresh one-time code: `POST 
 only, no header) → returns a `session_token` → then `POST /propose` with that token as the bearer →
 hits your real calendar. That proves the whole new auth path before we build the app side (6b-2).
 
+---
+
+## Phase 6b-2a — backend OAuth web flow (type these in)
+
+The app opens a browser to the backend, which owns the whole Google OAuth dance and redirects back to
+the app (via a deep link) carrying a session token. This sidesteps Expo-Go's Google-OAuth redirect
+hell. Refactors the `/connect/google` exchange into a shared helper, adds two GET endpoints.
+
+### Google Cloud Console (your hands — do first)
+Add these to your OAuth client's **Authorized redirect URIs** (APIs & Services → Credentials → the
+`569874455572-…` client):
+- `http://localhost:8000/auth/google/callback`  (local testing)
+- `https://web-production-7f7d88.up.railway.app/auth/google/callback`  (cloud)
+
+### env
+- `.env`: `PUBLIC_BASE_URL=http://localhost:8000`
+- Railway: `PUBLIC_BASE_URL=https://web-production-7f7d88.up.railway.app`
+
+### `ryaa/api.py` — imports + config
+```python
+from fastapi.responses import RedirectResponse, StreamingResponse   # add RedirectResponse
+from urllib.parse import urlencode                                   # NEW
+```
+Near the other module-level config (after `load_dotenv()`):
+```python
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+GOOGLE_SCOPES = (
+    "openid email profile "
+    "https://www.googleapis.com/auth/calendar.events "
+    "https://www.googleapis.com/auth/tasks"
+)
+```
+
+### `ryaa/api.py` — extract the exchange into a helper, and slim `connect_google`
+Replace the whole `connect_google` function with this helper + thin endpoint:
+```python
+def _connect_with_code(
+    code: str,
+    redirect_uri: str,
+    session: Session,
+    timezone: str | None = None,
+    code_verifier: str | None = None,
+) -> User:
+    """Exchange an auth code, upsert the user + encrypted refresh token, return the User."""
+    data = {
+        "code": code,
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    if code_verifier:
+        data["code_verifier"] = code_verifier
+    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
+    if resp.status_code != 200:
+        raise HTTPException(400, f"Token exchange failed: {resp.text}")
+    tokens = resp.json()
+
+    refresh_token = tokens.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(400, "No refresh token; re-consent with offline access + prompt=consent.")
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise HTTPException(400, "No id_token returned from Google.")
+
+    claims = verify_google_id_token(id_token)
+    sub = claims["sub"]
+    user = session.exec(
+        select(User).where(User.auth_provider == "google", User.provider_subject == sub)
+    ).first()
+    if user is None:
+        user = User(auth_provider="google", provider_subject=sub, email=claims.get("email"))
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None:
+        conn = ProviderConnection(user_id=user.id, provider="google")
+    conn.credentials = encrypt(refresh_token)
+    conn.scopes = tokens.get("scope", "")
+    if timezone:
+        user.timezone = timezone
+    session.add(conn)
+    session.add(user)
+    session.commit()
+    return user
+
+
+@app.post("/connect/google")
+def connect_google(req: ConnectRequest, session: Session = Depends(get_session)):
+    user = _connect_with_code(req.code, req.redirect_uri, session, req.timezone, req.code_verifier)
+    return {"session_token": issue_session(str(user.id)), "timezone": user.timezone}
+```
+
+### `ryaa/api.py` — the two browser-OAuth endpoints
+```python
+@app.get("/auth/google/start")
+def auth_google_start(return_url: str):
+    # return_url is the app's deep link (exp://… in Expo Go, ryaa://… in a real build)
+    if not (return_url.startswith("exp://") or return_url.startswith("ryaa://")):
+        raise HTTPException(400, "invalid return_url")
+    params = {
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "redirect_uri": f"{PUBLIC_BASE_URL}/auth/google/callback",
+        "response_type": "code",
+        "scope": GOOGLE_SCOPES,
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": return_url,  # round-tripped so the callback knows where to send the user back
+    }
+    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+
+
+@app.get("/auth/google/callback")
+def auth_google_callback(code: str, state: str, session: Session = Depends(get_session)):
+    user = _connect_with_code(code, f"{PUBLIC_BASE_URL}/auth/google/callback", session)
+    token = issue_session(str(user.id))
+    sep = "&" if "?" in state else "?"
+    return RedirectResponse(f"{state}{sep}session_token={token}")  # deep-link back to the app
+```
+
+Notes: GET endpoints + redirects aren't CORS-gated (CORS only affects JS fetch, not browser
+navigation), so no CORS change. `state` validation is a basic open-redirect guard (only `exp://`/
+`ryaa://`) — fine for MVP; sign/validate it later. Timezone isn't captured in the web flow (the app
+can set it on first `/propose`-ish call later); not blocking.
+
+After you've added the redirect URIs + `PUBLIC_BASE_URL` and typed these in, I'll test: start the local
+server, confirm `/auth/google/start` 307-redirects to Google with the right params, then you open it in
+a browser, consent, and we watch it land on `exp://test?session_token=…` — proving the full web flow.
+
+
 
 
 
