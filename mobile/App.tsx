@@ -4,7 +4,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
 
-const BACKEND = 'https://web-production-7f7d88.up.railway.app';
+import { BACKEND } from './api';
+import Chat from './Chat';
+
 const TOKEN_KEY = 'ryaa_session_token';
 
 export default function App() {
@@ -49,18 +51,15 @@ export default function App() {
     );
   }
 
+  // Signed in -> the chat; signed out -> the sign-in button.
+  if (token) {
+    return <Chat token={token} onSignOut={signOut} />;
+  }
+
   return (
     <View style={styles.center}>
       <Text style={styles.title}>RYAA</Text>
-      {token ? (
-        <>
-          <Text style={styles.ok}>Signed in ✓</Text>
-          <Text style={styles.dim}>{token.slice(0, 18)}…</Text>
-          <Button title="Sign out" onPress={signOut} />
-        </>
-      ) : (
-        <Button title="Sign in with Google" onPress={signIn} />
-      )}
+      <Button title="Sign in with Google" onPress={signIn} />
     </View>
   );
 }
@@ -74,6 +73,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   title: { fontSize: 34, fontWeight: '700' },
-  ok: { fontSize: 18, color: '#1a7f37' },
-  dim: { color: '#999' },
 });
