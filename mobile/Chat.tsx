@@ -108,9 +108,9 @@ export default function Chat({
         </GlassCard>
       )}
 
-      <View style={[styles.inputRow, { paddingBottom: insets.bottom + space.sm }]}>
-        <View style={styles.capsuleShadow}>
-          <Glass nav rounded={radius.pill}>
+      <View style={[styles.composerWrap, { paddingBottom: insets.bottom + space.sm }]}>
+        <View style={styles.composerShadow}>
+          <Glass nav rounded={radius.r} style={styles.composer}>
             <TextInput
               style={styles.input}
               value={input}
@@ -121,13 +121,13 @@ export default function Chat({
               onSubmitEditing={send}
               returnKeyType="send"
             />
+            {busy ? (
+              <ActivityIndicator style={styles.spinner} color={color.ink} />
+            ) : (
+              <ChromeButton label="send" compact onPress={send} />
+            )}
           </Glass>
         </View>
-        {busy ? (
-          <ActivityIndicator style={styles.spinner} color={color.ink} />
-        ) : (
-          <ChromeButton label="send" compact onPress={send} />
-        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -175,32 +175,36 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(20,19,15,0.25)',
   },
   cancelText: { fontFamily: font.mono, fontSize: 13, color: color.ink },
-  inputRow: {
+  // The composer is ONE floating glass island holding the recessed input + send,
+  // mirroring the web app's .composer (a sticky rounded island, not a bare input
+  // with a detached button). Shadow lives on an outer wrapper since Glass clips.
+  composerWrap: { paddingHorizontal: space.md, paddingTop: space.sm },
+  composerShadow: {
+    borderRadius: radius.r,
+    shadowColor: color.ink,
+    shadowOpacity: 0.12,
+    shadowRadius: 11,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  composer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    paddingHorizontal: space.md,
-    paddingTop: space.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: color.line,
-    backgroundColor: color.paper,
-  },
-  capsuleShadow: {
-    flex: 1,
-    borderRadius: radius.pill,
-    shadowColor: color.ink,
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   input: {
+    flex: 1,
     fontFamily: font.body,
     fontSize: 16,
     color: color.ink,
-    paddingHorizontal: 18,
+    paddingHorizontal: 15,
     paddingVertical: 11,
-    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: color.line,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.5)', // recessed lip inside the island
   },
   spinner: { width: 56 },
 });
