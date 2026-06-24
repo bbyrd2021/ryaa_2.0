@@ -107,8 +107,8 @@ def _connect_with_code(
     """Exchange an auth code, upsert the user + encrypted refresh token, return the User."""
     data = {
         "code": code,
-        "client_id": os.environ["GOOGLE_CLIENT_SECRET"],
-        "client_secret": os.environ["GOOGLE_CLIENT_ID"],
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
         "redirect_uri": redirect_uri,
         "grant_type": "authorization_code",
     }
@@ -154,7 +154,7 @@ def _connect_with_code(
     ).first()
     if conn is None:
         conn = ProviderConnection(user_id=user.id, provider="google")
-    conn.Credentials = encrypt(refresh_token)
+    conn.credentials = encrypt(refresh_token)
     conn.scopes = tokens.get("scope", "")
     if timezone:
         user.timezone = timezone
@@ -220,37 +220,6 @@ def auth_google_callback(
     return RedirectResponse(
         f"{state}{sep}session_token={token}"
     )  # deep-link back to the app
-
-
-@app.get("/debug/google-creds")
-def debug_google_creds(code: str = "dummy"):
-    # TEMPORARY diagnostic — probes THIS deployment's own Google creds. Remove after.
-    cid = os.environ.get("GOOGLE_CLIENT_ID", "")
-    csec = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    r = requests.post(
-        "https://oauth2.googleapis.com/token",
-        data={
-            "code": code,
-            "client_id": cid,
-            "client_secret": csec,
-            "redirect_uri": f"{PUBLIC_BASE_URL}/auth/google/callback",
-            "grant_type": "authorization_code",
-        },
-    )
-    return {
-        "client_id_prefix": cid[:24],
-        "client_id_len": len(cid),
-        "secret_prefix": csec[:7],
-        "secret_len": len(csec),
-        "secret_has_quote": '"' in csec,
-        "secret_has_stray_space": csec != csec.strip(),
-        "secret_sha16": __import__("hashlib").sha256(csec.encode()).hexdigest()[:16],
-        "client_id_sha16": __import__("hashlib").sha256(cid.encode()).hexdigest()[:16],
-        "public_base_url": PUBLIC_BASE_URL,
-        # invalid_grant = creds VALID (dummy code rejected); invalid_client = creds BAD
-        "google_verdict": r.json().get("error"),
-        "google_keys": list(r.json().keys()),  # has access_token/refresh_token on success
-    }
 
 
 @app.post("/propose")
