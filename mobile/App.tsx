@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BACKEND } from './api';
 import Chat from './Chat';
@@ -77,7 +78,11 @@ export default function App() {
 
   // Signed in -> the chat; signed out -> the sign-in screen.
   if (token) {
-    return <Chat token={token} onSignOut={signOut} />;
+    return (
+      <SafeAreaProvider>
+        <Chat token={token} onSignOut={signOut} />
+      </SafeAreaProvider>
+    );
   }
 
   return (

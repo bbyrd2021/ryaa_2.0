@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from './api';
 import ChromeButton from './components/ChromeButton';
@@ -28,6 +29,7 @@ export default function Chat({
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<api.ProposeResult | null>(null);
+  const insets = useSafeAreaInsets();
 
   async function send() {
     const text = input.trim();
@@ -106,17 +108,19 @@ export default function Chat({
         </GlassCard>
       )}
 
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          value={input}
-          onChangeText={setInput}
-          placeholder="Message ryaa."
-          placeholderTextColor={color.inkSoft}
-          editable={!busy}
-          onSubmitEditing={send}
-          returnKeyType="send"
-        />
+      <View style={[styles.inputRow, { paddingBottom: insets.bottom + space.sm }]}>
+        <Glass rounded={radius.pill} style={styles.inputCapsule}>
+          <TextInput
+            style={styles.input}
+            value={input}
+            onChangeText={setInput}
+            placeholder="Message ryaa."
+            placeholderTextColor={color.inkSoft}
+            editable={!busy}
+            onSubmitEditing={send}
+            returnKeyType="send"
+          />
+        </Glass>
         {busy ? (
           <ActivityIndicator style={styles.spinner} color={color.ink} />
         ) : (
@@ -174,22 +178,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
-    paddingVertical: space.md,
+    paddingTop: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: color.line,
     backgroundColor: color.paper,
   },
+  inputCapsule: { flex: 1 },
   input: {
-    flex: 1,
     fontFamily: font.body,
     fontSize: 16,
     color: color.ink,
-    borderWidth: 1,
-    borderColor: color.line,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: color.paper2,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    backgroundColor: 'transparent',
   },
   spinner: { width: 56 },
 });
