@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Button,
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +12,10 @@ import {
 } from 'react-native';
 
 import * as api from './api';
+import ChromeButton from './components/ChromeButton';
+import { Glass, GlassCard } from './components/Glass';
+import Wordmark from './components/Wordmark';
+import { color, font, radius, screenPad, space } from './theme';
 
 export default function Chat({
   token,
@@ -43,7 +47,7 @@ export default function Chat({
         setPending(res); // show the confirm card
       }
     } catch (e) {
-      setMessages((m) => [...m, { role: 'assistant', content: `⚠️ ${e}` }]);
+      setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong. ${e}` }]);
     } finally {
       setBusy(false);
     }
@@ -56,7 +60,7 @@ export default function Chat({
       const res = await api.confirm(token, pending.action, pending.event, pending.event_id);
       setMessages((m) => [...m, { role: 'assistant', content: res.message }]);
     } catch (e) {
-      setMessages((m) => [...m, { role: 'assistant', content: `⚠️ ${e}` }]);
+      setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong. ${e}` }]);
     } finally {
       setPending(null);
       setBusy(false);
@@ -68,10 +72,12 @@ export default function Chat({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>RYAA</Text>
-        <Button title="Sign out" onPress={onSignOut} />
-      </View>
+      <Glass nav rounded={0} style={styles.header}>
+        <Wordmark size={22} treatment="ink" />
+        <Pressable onPress={onSignOut} hitSlop={8}>
+          <Text style={styles.signout}>sign out</Text>
+        </Pressable>
+      </Glass>
 
       <FlatList
         style={styles.flex}
@@ -88,13 +94,16 @@ export default function Chat({
       />
 
       {pending && (
-        <View style={styles.card}>
+        <GlassCard style={styles.card}>
           <Text style={styles.cardText}>Add this to your calendar?</Text>
+          <Text style={styles.cardNote}>Nothing saves until you say yes.</Text>
           <View style={styles.cardButtons}>
-            <Button title="Confirm" onPress={confirmEvent} />
-            <Button title="Cancel" color="#888" onPress={() => setPending(null)} />
+            <ChromeButton label="confirm" compact onPress={confirmEvent} />
+            <Pressable onPress={() => setPending(null)} style={styles.cancel} hitSlop={6}>
+              <Text style={styles.cancelText}>cancel</Text>
+            </Pressable>
           </View>
-        </View>
+        </GlassCard>
       )}
 
       <View style={styles.inputRow}>
@@ -102,55 +111,85 @@ export default function Chat({
           style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Message RYAA…"
+          placeholder="Message ryaa."
+          placeholderTextColor={color.inkSoft}
           editable={!busy}
           onSubmitEditing={send}
           returnKeyType="send"
         />
-        {busy ? <ActivityIndicator style={styles.spinner} /> : <Button title="Send" onPress={send} />}
+        {busy ? (
+          <ActivityIndicator style={styles.spinner} color={color.ink} />
+        ) : (
+          <ChromeButton label="send" compact onPress={send} />
+        )}
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, backgroundColor: color.paper },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 64,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingTop: 60,
+    paddingBottom: 12,
+    paddingHorizontal: screenPad,
+    borderWidth: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
+    borderBottomColor: color.line,
   },
-  title: { fontSize: 22, fontWeight: '700' },
-  list: { padding: 12, gap: 8 },
-  bubble: { maxWidth: '85%', borderRadius: 16, paddingVertical: 8, paddingHorizontal: 12 },
-  user: { alignSelf: 'flex-end', backgroundColor: '#0a84ff' },
-  assistant: { alignSelf: 'flex-start', backgroundColor: '#eee' },
-  userText: { color: '#fff' },
-  assistantText: { color: '#111' },
-  card: { margin: 12, padding: 14, borderRadius: 14, backgroundColor: '#f3f7ff', gap: 10 },
-  cardText: { fontSize: 15 },
-  cardButtons: { flexDirection: 'row', justifyContent: 'space-around' },
+  signout: { fontFamily: font.mono, fontSize: 12.5, color: color.inkSoft },
+  list: { padding: space.md, gap: space.sm },
+  bubble: {
+    maxWidth: '85%',
+    borderRadius: radius.bubble,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+  },
+  user: { alignSelf: 'flex-end', backgroundColor: color.ink },
+  assistant: {
+    alignSelf: 'flex-start',
+    backgroundColor: color.paper2,
+    borderWidth: 1,
+    borderColor: color.line,
+  },
+  userText: { color: color.paper, fontFamily: font.body, fontSize: 15.5, lineHeight: 21 },
+  assistantText: { color: color.ink, fontFamily: font.body, fontSize: 15.5, lineHeight: 21 },
+  card: { margin: space.md },
+  cardText: { fontFamily: font.heading, fontSize: 16, color: color.ink },
+  cardNote: { fontFamily: font.body, fontSize: 13, color: color.inkSoft, marginTop: 4 },
+  cardButtons: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md },
+  cancel: {
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: 'rgba(20,19,15,0.25)',
+  },
+  cancelText: { fontFamily: font.mono, fontSize: 13, color: color.ink },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: 12,
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
+    borderTopColor: color.line,
+    backgroundColor: color.paper,
   },
   input: {
     flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ccc',
+    fontFamily: font.body,
+    fontSize: 16,
+    color: color.ink,
+    borderWidth: 1,
+    borderColor: color.line,
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    fontSize: 16,
+    paddingVertical: 9,
+    backgroundColor: color.paper2,
   },
-  spinner: { width: 64 },
+  spinner: { width: 56 },
 });

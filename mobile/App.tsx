@@ -1,17 +1,41 @@
+import {
+  FamiljenGrotesk_600SemiBold,
+  FamiljenGrotesk_700Bold,
+} from '@expo-google-fonts/familjen-grotesk';
+import {
+  HankenGrotesk_400Regular,
+  HankenGrotesk_500Medium,
+} from '@expo-google-fonts/hanken-grotesk';
+import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
+import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
+import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { BACKEND } from './api';
 import Chat from './Chat';
+import ChromeButton from './components/ChromeButton';
+import Sparkle from './components/Sparkle';
+import Wordmark from './components/Wordmark';
+import { color, font, screenPad, space } from './theme';
 
 const TOKEN_KEY = 'ryaa_session_token';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [fontsLoaded] = useFonts({
+    FamiljenGrotesk_700Bold,
+    FamiljenGrotesk_600SemiBold,
+    HankenGrotesk_400Regular,
+    HankenGrotesk_500Medium,
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
+  });
 
   // On launch, load a previously-saved session token so you stay signed in.
   useEffect(() => {
@@ -43,23 +67,28 @@ export default function App() {
     setToken(null);
   }
 
-  if (loading) {
+  if (loading || !fontsLoaded) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator />
+        <ActivityIndicator color={color.ink} />
       </View>
     );
   }
 
-  // Signed in -> the chat; signed out -> the sign-in button.
+  // Signed in -> the chat; signed out -> the sign-in screen.
   if (token) {
     return <Chat token={token} onSignOut={signOut} />;
   }
 
   return (
     <View style={styles.center}>
-      <Text style={styles.title}>RYAA</Text>
-      <Button title="Sign in with Google" onPress={signIn} />
+      <StatusBar style="dark" />
+      <View style={styles.hero}>
+        <Sparkle size={24} opacity={0.85} style={styles.sparkle} />
+        <Wordmark size={72} treatment="chrome" />
+      </View>
+      <Text style={styles.tagline}>asks before it acts.</Text>
+      <ChromeButton label="sign in with google" onPress={signIn} style={styles.cta} />
     </View>
   );
 }
@@ -69,8 +98,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    backgroundColor: '#fff',
+    gap: space.lg,
+    backgroundColor: color.paper,
+    paddingHorizontal: screenPad,
   },
-  title: { fontSize: 34, fontWeight: '700' },
+  hero: { alignSelf: 'center' },
+  sparkle: { position: 'absolute', top: -16, left: -10 },
+  tagline: { fontFamily: font.body, fontSize: 15, color: color.inkSoft, marginTop: -2 },
+  cta: { marginTop: space.lg },
 });
