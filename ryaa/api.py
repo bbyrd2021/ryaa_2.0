@@ -223,14 +223,14 @@ def auth_google_callback(
 
 
 @app.get("/debug/google-creds")
-def debug_google_creds():
+def debug_google_creds(code: str = "dummy"):
     # TEMPORARY diagnostic — probes THIS deployment's own Google creds. Remove after.
     cid = os.environ.get("GOOGLE_CLIENT_ID", "")
     csec = os.environ.get("GOOGLE_CLIENT_SECRET", "")
     r = requests.post(
         "https://oauth2.googleapis.com/token",
         data={
-            "code": "dummy",
+            "code": code,
             "client_id": cid,
             "client_secret": csec,
             "redirect_uri": f"{PUBLIC_BASE_URL}/auth/google/callback",
@@ -244,9 +244,12 @@ def debug_google_creds():
         "secret_len": len(csec),
         "secret_has_quote": '"' in csec,
         "secret_has_stray_space": csec != csec.strip(),
+        "secret_sha16": __import__("hashlib").sha256(csec.encode()).hexdigest()[:16],
+        "client_id_sha16": __import__("hashlib").sha256(cid.encode()).hexdigest()[:16],
         "public_base_url": PUBLIC_BASE_URL,
         # invalid_grant = creds VALID (dummy code rejected); invalid_client = creds BAD
         "google_verdict": r.json().get("error"),
+        "google_keys": list(r.json().keys()),  # has access_token/refresh_token on success
     }
 
 
