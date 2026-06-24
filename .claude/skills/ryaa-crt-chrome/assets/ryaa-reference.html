@@ -1,0 +1,1315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ryaa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Hanken+Grotesk:wght@400;500&family=Saira+Condensed:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --paper: #efede6;
+        --paper-2: #e6e3db;
+        --ink: #14130f;
+        --ink-soft: #6b695f;
+        --line: rgba(20, 19, 15, 0.14);
+        --teal: #0b7a6b;
+        --r: 18px;
+        --maxw: 720px;
+        --pad: 40px;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family: "Hanken Grotesk", sans-serif;
+        background: var(--paper);
+        color: var(--ink);
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.6;
+      }
+
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 var(--pad);
+      }
+
+      /* ─── NAV — glass pill ─── */
+      nav {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 500;
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        padding: 10px 14px 10px 22px;
+        background: rgba(239, 237, 230, 0.55);
+        backdrop-filter: blur(20px) saturate(1.4);
+        -webkit-backdrop-filter: blur(20px) saturate(1.4);
+        border: 1px solid rgba(20, 19, 15, 0.12);
+        border-radius: 999px;
+        box-shadow:
+          0 6px 28px rgba(20, 19, 15, 0.06),
+          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        width: max-content;
+        max-width: calc(100vw - 36px);
+      }
+      .logo {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: -0.04em;
+        color: var(--ink);
+        line-height: 1;
+      }
+      .logo .dot {
+        color: var(--ink);
+      }
+      .nav-links {
+        display: flex;
+        gap: 22px;
+        list-style: none;
+        align-items: center;
+      }
+      .nav-links a {
+        font-family: "Space Mono", monospace;
+        font-size: 12.5px;
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .nav-links a:hover {
+        color: var(--ink);
+      }
+      .nav-cta {
+        font-family: "Space Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        color: #1a1a17;
+        background: linear-gradient(
+          180deg,
+          #ffffff 0%,
+          #e2e1dc 38%,
+          #b6b5af 52%,
+          #d6d4ce 70%,
+          #f1efe9 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 999px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.9),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.18),
+          0 2px 5px rgba(20, 19, 15, 0.16);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+        transition:
+          background 0.15s,
+          box-shadow 0.15s;
+        white-space: nowrap;
+      }
+      .nav-cta:hover {
+        background: linear-gradient(
+          180deg,
+          #ffffff 0%,
+          #ebeae5 38%,
+          #c4c3bd 52%,
+          #e0ded8 70%,
+          #ffffff 100%
+        );
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.15),
+          0 3px 9px rgba(11, 122, 107, 0.3);
+      }
+
+      /* ─── HERO — CRT TV with big chrome wordmark ─── */
+      .hero {
+        padding: 150px 0 110px;
+        position: relative;
+      }
+
+      .hero .wrap {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ── 4-point sparkles ── */
+      .spark {
+        position: absolute;
+        z-index: 5;
+        fill: var(--ink);
+        pointer-events: none;
+        filter: drop-shadow(0 1px 2px rgba(20, 19, 15, 0.15));
+      }
+      .spark-1 {
+        width: 42px;
+        height: 42px;
+        top: -22px;
+        right: -8px;
+        opacity: 0.92;
+      }
+      .spark-2 {
+        width: 24px;
+        height: 24px;
+        top: 14px;
+        left: -18px;
+        opacity: 0.82;
+      }
+      .spark-3 {
+        width: 15px;
+        height: 15px;
+        top: -30px;
+        right: 40px;
+        opacity: 0.7;
+      }
+
+      .crt-stage {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 48px;
+        position: relative;
+      }
+
+      /* the TV cabinet — silver molded Colani-style shell */
+      .crt {
+        position: relative;
+        width: 100%;
+        max-width: 720px;
+        padding: 30px 30px 20px;
+        border-radius: 60px / 48px; /* organic, oval-ish */
+        background: linear-gradient(
+          165deg,
+          #f3f2ef 0%,
+          #d2d1cb 20%,
+          #a9a8a2 42%,
+          #88877f 60%,
+          #c0bfb9 80%,
+          #ebeae5 100%
+        );
+        box-shadow:
+          0 36px 80px rgba(20, 19, 15, 0.3),
+          inset 0 3px 4px rgba(255, 255, 255, 0.85),
+          inset 0 -6px 12px rgba(0, 0, 0, 0.28),
+          inset 6px 0 14px rgba(255, 255, 255, 0.4),
+          inset -6px 0 14px rgba(0, 0, 0, 0.18);
+      }
+      /* molded highlight sweep across the curved metal */
+      .crt::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 60px / 48px;
+        background:
+          radial-gradient(
+            ellipse at 50% 0%,
+            rgba(255, 255, 255, 0.55) 0%,
+            transparent 45%
+          ),
+          linear-gradient(
+            105deg,
+            transparent 40%,
+            rgba(255, 255, 255, 0.22) 50%,
+            transparent 60%
+          );
+        pointer-events: none;
+      }
+      /* the head unit: screen flanked by speaker pods */
+      .crt-head {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: stretch;
+        gap: 14px;
+      }
+      .crt-pod {
+        flex-shrink: 0;
+        width: 30px;
+        align-self: stretch;
+        border-radius: 22px;
+        background: linear-gradient(
+          100deg,
+          #b9b8b1 0%,
+          #87867f 45%,
+          #66655f 70%,
+          #a3a29b 100%
+        );
+        box-shadow:
+          inset 0 2px 2px rgba(255, 255, 255, 0.5),
+          inset 0 -3px 5px rgba(0, 0, 0, 0.4),
+          0 1px 2px rgba(255, 255, 255, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+      /* speaker grille slits on the pods */
+      .crt-pod::after {
+        content: "";
+        position: absolute;
+        inset: 18% 7px;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0.32) 0 2px,
+          rgba(255, 255, 255, 0.14) 2px 4px
+        );
+        border-radius: 8px;
+        box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.5);
+      }
+      /* etched brand plate on the cabinet bezel, below the screen */
+      .crt-plate {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 14px 6px;
+      }
+      .crt-plate-text {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        font-family: "Saira Condensed", sans-serif;
+        font-weight: 800;
+        font-style: italic;
+        font-size: 22px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        /* dark engraved chrome on the silver bezel */
+        background: linear-gradient(
+          175deg,
+          #6e6d67 0%,
+          #2f2e2a 45%,
+          #1a1916 62%,
+          #5a5953 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+        filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.55));
+      }
+
+      /* power button — round, recessed into the bezel */
+      .crt-power {
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+          circle at 35% 30%,
+          #3a3a36 0%,
+          #1a1a17 70%,
+          #0c0c0a 100%
+        );
+        box-shadow:
+          inset 0 1px 1px rgba(255, 255, 255, 0.12),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.7),
+          0 1px 1px rgba(255, 255, 255, 0.06);
+        transition: box-shadow 0.12s;
+      }
+      .crt-power:hover {
+        box-shadow:
+          inset 0 1px 1px rgba(255, 255, 255, 0.12),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.7),
+          0 0 8px rgba(63, 183, 163, 0.5);
+      }
+      .crt-power-icon {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 1.5px solid #c4c3bd;
+        position: relative;
+      }
+      .crt-power-icon::after {
+        content: "";
+        position: absolute;
+        top: -3px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1.5px;
+        height: 6px;
+        background: #c4c3bd;
+        border-radius: 1px;
+        box-shadow: 0 0 0 1.5px rgba(26, 26, 23, 1); /* notch in the ring */
+      }
+
+      /* control buttons — molded plastic rockers, right side */
+      .crt-controls {
+        flex-shrink: 0;
+        display: flex;
+        gap: 7px;
+      }
+      .crt-btn {
+        width: 18px;
+        height: 13px;
+        border-radius: 3px;
+        background: linear-gradient(180deg, #34342f 0%, #1c1c19 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.1),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.6),
+          0 1px 0 rgba(0, 0, 0, 0.4);
+      }
+
+      /* the glass screen */
+      .crt-screen {
+        position: relative;
+        flex: 1;
+        border-radius: 34px / 40px; /* rounder CRT bulge */
+        overflow: hidden;
+        background: radial-gradient(
+          ellipse at 50% 42%,
+          #6f6e66 0%,
+          #4a4943 80%
+        );
+        padding: 64px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* recessed into the silver shell */
+        box-shadow:
+          inset 0 0 50px rgba(0, 0, 0, 0.5),
+          inset 0 0 0 3px rgba(0, 0, 0, 0.55),
+          inset 0 0 0 7px rgba(255, 255, 255, 0.35),
+          0 0 0 1px rgba(0, 0, 0, 0.2);
+      }
+      /* scanlines — stronger, visible on gray */
+      .crt-screen::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0) 0px,
+          rgba(0, 0, 0, 0) 1px,
+          rgba(0, 0, 0, 0.16) 2px,
+          rgba(0, 0, 0, 0.16) 3px
+        );
+        animation: crt-flicker 4s steps(60) infinite;
+      }
+      /* curved-glass vignette + glare */
+      .crt-screen::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        pointer-events: none;
+        border-radius: 34px / 40px;
+        background:
+          radial-gradient(
+            ellipse at 50% 12%,
+            rgba(255, 255, 255, 0.14) 0%,
+            transparent 48%
+          ),
+          radial-gradient(
+            ellipse at 50% 50%,
+            transparent 58%,
+            rgba(0, 0, 0, 0.32) 100%
+          );
+      }
+
+      /* the glowing CRT text (base, centered normally) */
+      .crt-word {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 700;
+        font-size: clamp(15px, 3vw, 26px);
+        letter-spacing: 0.08em;
+        line-height: 1.15;
+        text-transform: uppercase;
+        text-align: center;
+        color: #ffffff;
+      }
+      /* the lowercase ryaa. wordmark, larger, sits above the agent name */
+      .crt-mark {
+        display: block;
+        text-transform: none;
+        font-weight: 700;
+        font-size: clamp(56px, 13vw, 120px);
+        letter-spacing: -0.05em;
+        line-height: 0.9;
+        margin-bottom: 0.16em;
+      }
+      .crt-mark .dot {
+        color: inherit;
+      }
+      .crt-cursor {
+        display: inline-block;
+        width: 0.2em;
+        height: 0.5em;
+        margin-left: 0.06em;
+        vertical-align: 0.04em;
+        background: currentColor;
+        animation: crt-cursor-blink 1.06s steps(1) infinite;
+      }
+      .crt-word.base .crt-cursor {
+        background: #ffffff;
+        box-shadow:
+          0 0 8px rgba(255, 255, 255, 0.7),
+          0 0 18px rgba(255, 255, 255, 0.4);
+      }
+      @keyframes crt-cursor-blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+        50.01%,
+        100% {
+          opacity: 0;
+        }
+      }
+      .crt-word.base {
+        position: relative;
+        z-index: 3;
+        text-shadow:
+          0 0 10px rgba(255, 255, 255, 0.55),
+          0 0 28px rgba(255, 255, 255, 0.3),
+          0 0 60px rgba(255, 255, 255, 0.18);
+        animation: crt-glow 3.2s ease-in-out infinite;
+      }
+      @keyframes crt-glow {
+        0%,
+        100% {
+          text-shadow:
+            0 0 10px rgba(255, 255, 255, 0.55),
+            0 0 28px rgba(255, 255, 255, 0.3),
+            0 0 60px rgba(255, 255, 255, 0.18);
+        }
+        50% {
+          text-shadow:
+            0 0 8px rgba(255, 255, 255, 0.45),
+            0 0 20px rgba(255, 255, 255, 0.22),
+            0 0 44px rgba(255, 255, 255, 0.12);
+        }
+      }
+      .crt-word .dot {
+        color: inherit;
+      }
+
+      /* RGB ghosts — full-screen layers, masked to the SAME band as the sweep bar.
+   Centered to sit exactly over the base wordmark. */
+      .crt-word.ghost {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        mix-blend-mode: screen;
+        /* identical band geometry + animation as .crt-sweep */
+        /* thin feathered band that slides — mirrors the bar's gradient profile exactly */
+        -webkit-mask: linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(0, 0, 0, 0.6) 40%,
+            #000 50%,
+            rgba(0, 0, 0, 0.6) 60%,
+            transparent 100%
+          )
+          no-repeat;
+        mask: linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(0, 0, 0, 0.6) 40%,
+            #000 50%,
+            rgba(0, 0, 0, 0.6) 60%,
+            transparent 100%
+          )
+          no-repeat;
+        -webkit-mask-size: 100% 5%;
+        mask-size: 100% 5%;
+        -webkit-mask-position: 0 -20%;
+        mask-position: 0 -20%;
+        animation: crt-band 4.5s linear infinite;
+      }
+      .crt-word.ghost-r {
+        color: #ff1a1a;
+        transform: translateX(-3px);
+      }
+      .crt-word.ghost-c {
+        color: #1affff;
+        transform: translateX(3px);
+      }
+
+      /* the band sweeps top→bottom (mask-position) */
+      @keyframes crt-band {
+        0% {
+          -webkit-mask-position: 0 -20%;
+          mask-position: 0 -20%;
+        }
+        100% {
+          -webkit-mask-position: 0 120%;
+          mask-position: 0 120%;
+        }
+      }
+
+      /* the rolling VHS bar — full-width, thin, locked to the ghost band */
+      .crt-sweep {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        pointer-events: none;
+        background: linear-gradient(
+          180deg,
+          transparent 44%,
+          rgba(255, 40, 40, 0.18) 48%,
+          /* red leading edge */ rgba(255, 255, 255, 0.3) 50%,
+          /* bright core */ rgba(40, 255, 255, 0.18) 52%,
+          /* cyan trailing edge */ transparent 56%
+        );
+        background-repeat: no-repeat;
+        background-size: 100% 5%;
+        background-position: 0 -20%;
+        mix-blend-mode: screen;
+        animation: crt-sweep-move 4.5s linear infinite;
+      }
+      @keyframes crt-sweep-move {
+        0% {
+          background-position: 0 -20%;
+        }
+        100% {
+          background-position: 0 120%;
+        }
+      }
+
+      .hero-h1 {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 600;
+        font-size: clamp(28px, 4.4vw, 44px);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin-bottom: 24px;
+        text-align: center;
+        max-width: 640px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-h1 .caret {
+        display: inline-block;
+        width: 0.55ch;
+        height: 0.78em;
+        background: var(--ink);
+        margin-left: 0.1em;
+        transform: translateY(0.02em);
+        animation: caret 1.05s step-end infinite;
+      }
+      @keyframes caret {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0;
+        }
+      }
+
+      .hero-sub {
+        font-size: 18px;
+        color: var(--ink-soft);
+        max-width: 540px;
+        margin: 0 auto 36px;
+        text-align: center;
+      }
+      .hero-sub strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .btn {
+        font-family: "Space Mono", monospace;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 13px 24px;
+        cursor: pointer;
+        border-radius: 999px;
+        transition:
+          background 0.15s,
+          color 0.15s,
+          border-color 0.15s;
+      }
+      .btn-solid {
+        color: #1a1a17;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        background: linear-gradient(
+          180deg,
+          #ffffff 0%,
+          #e2e1dc 38%,
+          #b6b5af 52%,
+          #d6d4ce 70%,
+          #f1efe9 100%
+        );
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.9),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.18),
+          0 2px 6px rgba(20, 19, 15, 0.18);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      }
+      .btn-solid:hover {
+        background: linear-gradient(
+          180deg,
+          #ffffff 0%,
+          #ebeae5 38%,
+          #c4c3bd 52%,
+          #e0ded8 70%,
+          #ffffff 100%
+        );
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          inset 0 -2px 3px rgba(0, 0, 0, 0.15),
+          0 3px 10px rgba(11, 122, 107, 0.3);
+      }
+      .btn-line {
+        background: transparent;
+        color: var(--ink);
+        border: 1.5px solid rgba(20, 19, 15, 0.25);
+      }
+      .btn-line:hover {
+        border-color: var(--ink);
+      }
+
+      /* ─── SECTION SHELL ─── */
+      .section {
+        padding: 92px 0;
+        border-top: none;
+        position: relative;
+      }
+      /* Designers-Republic tick/swatch divider strip */
+      .section::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: var(--pad);
+        right: var(--pad);
+        height: 8px;
+        background:
+          linear-gradient(var(--ink) 0 0) left 0 top 0 / 8px 8px no-repeat,
+          linear-gradient(var(--ink) 0 0) left 11px top 0 / 8px 8px no-repeat,
+          linear-gradient(var(--ink) 0 0) left 22px top 0 / 8px 8px no-repeat,
+          linear-gradient(var(--line) 0 0) left 38px top 50% / calc(100% - 38px)
+            1px no-repeat;
+        opacity: 0.85;
+      }
+      .section::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: var(--pad);
+        width: 64px;
+        height: 8px;
+        background: repeating-linear-gradient(
+          90deg,
+          var(--ink) 0 1px,
+          transparent 1px 9px
+        );
+        opacity: 0.5;
+      }
+      .title-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 40px;
+      }
+      .spark-title {
+        position: static;
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        margin-top: 0.12em;
+        fill: var(--ink);
+        opacity: 0.9;
+      }
+      .title-row .section-title {
+        margin-bottom: 0;
+      }
+      .section-title {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 700;
+        font-size: clamp(34px, 5.4vw, 56px);
+        letter-spacing: -0.04em;
+        line-height: 1.02;
+        max-width: 640px;
+        margin-bottom: 40px;
+        /* steel chrome — dark-anchored so it stays legible on paper */
+        background: linear-gradient(
+          176deg,
+          #45443f 0%,
+          #14130f 40%,
+          #3a3935 52%,
+          #14130f 64%,
+          #4a4943 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+      }
+
+      /* ─── PHONE FRAME — shows the loop running on-device ─── */
+      .phone-stage {
+        display: flex;
+        justify-content: center;
+        padding: 8px 0;
+      }
+      .phone {
+        width: 300px;
+        max-width: 100%;
+        border: 1px solid rgba(20, 19, 15, 0.16);
+        border-radius: 40px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.26);
+        backdrop-filter: blur(16px) saturate(1.3);
+        -webkit-backdrop-filter: blur(16px) saturate(1.3);
+        box-shadow:
+          0 18px 50px rgba(20, 19, 15, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.55);
+        position: relative;
+      }
+      /* speaker notch */
+      .phone::before {
+        content: "";
+        position: absolute;
+        top: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 56px;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(20, 19, 15, 0.2);
+        z-index: 2;
+      }
+      .phone-screen {
+        border-radius: 30px;
+        overflow: hidden;
+        background: var(--paper);
+        border: 1px solid rgba(20, 19, 15, 0.08);
+        position: relative;
+      }
+      @keyframes crt-flicker {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        47% {
+          opacity: 0.92;
+        }
+        48% {
+          opacity: 0.78;
+        }
+        49% {
+          opacity: 0.95;
+        }
+        92% {
+          opacity: 0.88;
+        }
+      }
+      /* ─── CONFIRM CARD — clean, editorial (the yield gate) ─── */
+      .confirm {
+        position: relative;
+        z-index: 7;
+        width: 100%;
+        padding: 30px 26px 26px;
+        text-align: left;
+      }
+      .confirm-from {
+        font-size: 13px;
+        color: var(--ink-soft);
+        margin-bottom: 16px;
+      }
+      .confirm-event {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 18px;
+        margin-bottom: 20px;
+      }
+      .ce-title {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 600;
+        font-size: 21px;
+        letter-spacing: -0.02em;
+        margin-bottom: 4px;
+      }
+      .ce-when {
+        font-size: 14px;
+        color: var(--ink-soft);
+      }
+      .confirm-ask {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 600;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+        margin-bottom: 16px;
+      }
+      .confirm-actions {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .ca-yes,
+      .ca-edit {
+        font-size: 14px;
+        font-weight: 600;
+        padding: 11px 0;
+        border-radius: 999px;
+        text-align: center;
+        cursor: default;
+      }
+      .ca-yes {
+        flex: 1.4;
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .ca-edit {
+        flex: 1;
+        background: transparent;
+        color: var(--ink);
+        border: 1.5px solid rgba(20, 19, 15, 0.25);
+      }
+      .confirm-note {
+        font-size: 12px;
+        color: var(--ink-soft);
+        text-align: center;
+      }
+
+      /* ─── FEATURES — quiet list ─── */
+      .feat {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 32px;
+        padding: 26px 0;
+        border-top: 1px solid var(--line);
+      }
+      .feat:first-of-type {
+        border-top: none;
+      }
+      .feat-name {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+      }
+      .feat-soon {
+        font-family: "Space Mono", monospace;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        border: 1px solid var(--line);
+        padding: 2px 7px;
+        border-radius: 999px;
+      }
+      .feat-desc {
+        font-size: 15.5px;
+        color: var(--ink-soft);
+      }
+      .feat-desc code {
+        font-family: "Space Mono", monospace;
+        font-size: 13px;
+        color: var(--ink);
+        background: var(--paper-2);
+        padding: 1px 6px;
+        border-radius: 6px;
+      }
+
+      /* ─── FOOTER ─── */
+      footer {
+        padding: 64px 0 72px;
+        border-top: 1px solid var(--line);
+      }
+      .foot-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .foot-logo {
+        font-family: "Familjen Grotesk", sans-serif;
+        font-weight: 700;
+        font-size: 44px;
+        letter-spacing: -0.045em;
+        line-height: 1;
+        /* liquid chrome — drifting mercury highlight */
+        background: linear-gradient(
+          177deg,
+          #b8b6ad 0%,
+          #f2f0e9 18%,
+          #8a8980 34%,
+          #e4e2d9 50%,
+          #76756d 64%,
+          #d0cec5 80%,
+          #5a594f 100%
+        );
+        background-size: 100% 220%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+        animation: liquid 6s ease-in-out infinite;
+      }
+      @keyframes liquid {
+        0%,
+        100% {
+          background-position: 50% 0%;
+        }
+        50% {
+          background-position: 50% 100%;
+        }
+      }
+      .foot-logo .dot {
+        -webkit-text-fill-color: var(--ink);
+        color: var(--ink);
+      }
+      .foot-meta {
+        font-family: "Space Mono", monospace;
+        font-size: 12px;
+        color: var(--ink-soft);
+        text-align: right;
+        line-height: 1.9;
+      }
+
+      /* ─── reveal ─── */
+      .rev {
+        opacity: 0;
+        transform: translateY(14px);
+        transition:
+          opacity 0.5s ease,
+          transform 0.5s ease;
+      }
+      .rev.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .caret,
+        .foot-logo,
+        .crt-word.base,
+        .crt-word.ghost,
+        .crt-sweep,
+        .crt-cursor {
+          animation: none;
+        }
+        .crt-word.ghost {
+          display: none;
+        }
+        .crt-screen::before {
+          animation: none;
+        }
+        .rev {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+      }
+      @media (max-width: 560px) {
+        :root {
+          --pad: 22px;
+        }
+        nav {
+          gap: 14px;
+        }
+        .nav-links {
+          display: none;
+        }
+        .hero {
+          padding: 150px 0 80px;
+        }
+        .feat {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="logo">ryaa<span class="dot">.</span></div>
+      <ul class="nav-links">
+        <li><a href="#skills">skills</a></li>
+        <li><a href="#build">built</a></li>
+        <li><a href="#">github</a></li>
+      </ul>
+      <button class="nav-cta">get started</button>
+    </nav>
+
+    <!-- HERO -->
+    <header class="hero">
+      <div class="wrap">
+        <div class="crt-stage rev">
+          <!-- deliberate sparkles -->
+          <svg class="spark spark-1" viewBox="0 0 100 100" aria-hidden="true">
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <svg class="spark spark-2" viewBox="0 0 100 100" aria-hidden="true">
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <svg class="spark spark-3" viewBox="0 0 100 100" aria-hidden="true">
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <div class="crt">
+            <div class="crt-head">
+              <span class="crt-pod crt-pod-l" aria-hidden="true"></span>
+              <div class="crt-screen">
+                <div class="crt-word base">
+                  <span class="crt-mark"
+                    >ryaa<span class="dot">.</span
+                    ><span class="crt-cursor" aria-hidden="true"></span></span
+                  >Real-Time Yielding<br />Autonomous Agent
+                </div>
+                <div class="crt-word ghost ghost-r" aria-hidden="true">
+                  <span class="crt-mark"
+                    >ryaa<span class="dot">.</span
+                    ><span class="crt-cursor" aria-hidden="true"></span></span
+                  >Real-Time Yielding<br />Autonomous Agent
+                </div>
+                <div class="crt-word ghost ghost-c" aria-hidden="true">
+                  <span class="crt-mark"
+                    >ryaa<span class="dot">.</span
+                    ><span class="crt-cursor" aria-hidden="true"></span></span
+                  >Real-Time Yielding<br />Autonomous Agent
+                </div>
+                <div class="crt-sweep" aria-hidden="true"></div>
+              </div>
+              <span class="crt-pod crt-pod-r" aria-hidden="true"></span>
+            </div>
+            <div class="crt-plate">
+              <button class="crt-power" aria-label="Power">
+                <span class="crt-power-icon"></span>
+              </button>
+              <span class="crt-plate-text">RYAA</span>
+              <div class="crt-controls">
+                <span class="crt-btn"></span>
+                <span class="crt-btn"></span>
+                <span class="crt-btn"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h1 class="hero-h1">
+          Your academic assistant that asks before it acts
+        </h1>
+        <p class="hero-sub">
+          ryaa handles the busywork of university life —
+          <strong
+            >scheduling events and setting tasks to your Google Calendar</strong
+          >, grounded in your real deadlines. It does the work for you, then
+          hands control back before anything saves.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-solid">get started</button>
+          <button class="btn btn-line">how it works</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- LOOP -->
+    <section class="section" id="yield">
+      <div class="wrap">
+        <div class="title-row rev">
+          <svg
+            class="spark spark-title"
+            viewBox="0 0 100 100"
+            aria-hidden="true"
+          >
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <h2 class="section-title">It prepares the action. You approve it.</h2>
+        </div>
+        <div class="phone-stage rev">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="confirm">
+                <p class="confirm-from">ryaa prepared an event</p>
+                <div class="confirm-event">
+                  <p class="ce-title">Office Hours</p>
+                  <p class="ce-when">Tuesday · 2:00 PM</p>
+                </div>
+                <p class="confirm-ask">Add this to your calendar?</p>
+                <div class="confirm-actions">
+                  <span class="ca-yes">Yes, add it</span>
+                  <span class="ca-edit">Edit</span>
+                </div>
+                <p class="confirm-note">Nothing saves until you say yes</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT IT DOES -->
+    <section class="section" id="skills">
+      <div class="wrap">
+        <div class="title-row rev">
+          <svg
+            class="spark spark-title"
+            viewBox="0 0 100 100"
+            aria-hidden="true"
+          >
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <h2 class="section-title">
+            Grounded in your real courses — not generic advice.
+          </h2>
+        </div>
+
+        <div class="feat rev">
+          <span class="feat-name">Calendar</span>
+          <span class="feat-desc"
+            >Turns "office hours Tuesday at 2" into a real Google Calendar event
+            — relative dates resolved against your actual schedule, confirmed
+            before it saves.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name">Tasks</span>
+          <span class="feat-desc"
+            >Captures and sets tasks straight to Google Calendar with due dates,
+            so deadlines live right alongside your classes.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name"
+            >Study Coach <span class="feat-soon">soon</span></span
+          >
+          <span class="feat-desc"
+            >Suggestions pulled from your real courses and deadlines through
+            retrieval — advisory, so it'll never need the gate.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name">Yield gate</span>
+          <span class="feat-desc"
+            >Every action that touches the outside world stops, shows you what
+            it'll do, and waits. Nothing irreversible happens without your
+            yes.</span
+          >
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT'S BUILT -->
+    <section class="section" id="build">
+      <div class="wrap">
+        <div class="title-row rev">
+          <svg
+            class="spark spark-title"
+            viewBox="0 0 100 100"
+            aria-hidden="true"
+          >
+            <path
+              d="M50 0 C54 38 62 46 100 50 C62 54 54 62 50 100 C46 62 38 54 0 50 C38 46 46 38 50 0 Z"
+            />
+          </svg>
+          <h2 class="section-title">Pure Python. No black boxes.</h2>
+        </div>
+
+        <div class="feat rev">
+          <span class="feat-name">Model-agnostic</span>
+          <span class="feat-desc"
+            >A hand-rolled <code>LLMProvider</code> protocol with
+            <code>complete()</code> and <code>structured()</code>. Swap model
+            vendors without touching feature code.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name">Parallel guardrails</span>
+          <span class="feat-desc"
+            >A validity check and a prompt-injection check run concurrently and
+            <strong>fail closed</strong> — both must pass before anything
+            proceeds.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name">Patterns, not frameworks</span>
+          <span class="feat-desc"
+            >No LangChain, no AutoGen. Pydantic-validated structured output
+            throughout, so one person can run and fix every line.</span
+          >
+        </div>
+        <div class="feat rev">
+          <span class="feat-name">FastAPI backend</span>
+          <span class="feat-desc"
+            >A Python brain behind a <code>FastAPI</code> API, driven from a
+            glass front end. Ruff, mypy, and pytest gate every change.</span
+          >
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+      <div class="wrap foot-row">
+        <div class="foot-logo">ryaa<span class="dot">.</span></div>
+        <div class="foot-meta">
+          real-time yielding autonomous agent<br />
+          a safe academic assistant
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const obs = new IntersectionObserver(
+        (es) => {
+          es.forEach((e, i) => {
+            if (e.isIntersecting) {
+              setTimeout(() => e.target.classList.add("in"), i * 60);
+              obs.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.12 },
+      );
+      document.querySelectorAll(".rev").forEach((el) => obs.observe(el));
+    </script>
+  </body>
+</html>
