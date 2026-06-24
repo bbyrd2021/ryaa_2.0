@@ -222,6 +222,34 @@ def auth_google_callback(
     )  # deep-link back to the app
 
 
+@app.get("/debug/google-creds")
+def debug_google_creds():
+    # TEMPORARY diagnostic — probes THIS deployment's own Google creds. Remove after.
+    cid = os.environ.get("GOOGLE_CLIENT_ID", "")
+    csec = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    r = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": "dummy",
+            "client_id": cid,
+            "client_secret": csec,
+            "redirect_uri": f"{PUBLIC_BASE_URL}/auth/google/callback",
+            "grant_type": "authorization_code",
+        },
+    )
+    return {
+        "client_id_prefix": cid[:24],
+        "client_id_len": len(cid),
+        "secret_prefix": csec[:7],
+        "secret_len": len(csec),
+        "secret_has_quote": '"' in csec,
+        "secret_has_stray_space": csec != csec.strip(),
+        "public_base_url": PUBLIC_BASE_URL,
+        # invalid_grant = creds VALID (dummy code rejected); invalid_client = creds BAD
+        "google_verdict": r.json().get("error"),
+    }
+
+
 @app.post("/propose")
 def propose(
     req: ProposeRequest, scheduler: Scheduler = Depends(user_scheduler)
