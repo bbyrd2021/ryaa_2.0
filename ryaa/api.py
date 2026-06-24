@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from ryaa.auth import current_user
+from ryaa.auth import current_user, verify_google_id_token
 from ryaa.crypto import encrypt
 from ryaa.db import get_session, init_db
 from ryaa.db_models import ProviderConnection, User
@@ -21,6 +21,7 @@ from ryaa.factory import build_scheduler_for
 from ryaa.orchestrator import ProposeResult, Scheduler, ScheduleResult
 from ryaa.providers.base import Message
 from ryaa.providers.openai_provider import OpenAIProvider
+from ryaa.session import issue_session
 from ryaa.tools.calendar_tool import EventDetails
 
 logger = logging.getLogger(__name__)
@@ -80,8 +81,12 @@ class ConfirmRequest(BaseModel):
 class ConnectRequest(BaseModel):
     code: str
     redirect_uri: str
-    code_verifier: str | None = None  # PKCE (Expo app sends this); optional for manual testing
-    timezone: str | None = None  # client's IANA tz (calendar.events can't read calendar metadata)
+    code_verifier: str | None = (
+        None  # PKCE (Expo app sends this); optional for manual testing
+    )
+    timezone: str | None = (
+        None  # client's IANA tz (calendar.events can't read calendar metadata)
+    )
 
 
 def user_scheduler(
@@ -102,12 +107,8 @@ def user_scheduler(
 
 
 @app.post("/connect/google")
-def connect_google(
-    req: ConnectRequest,
-    user: User = Depends(current_user),
-    session: Session = Depends(get_session),
-):
-    # 1. exchange the one-time auth code for tokens
+def connect_google(req: ConnectRequest, session: Session = Depends(get_session)):
+    # No current_user — the one-time auth code itself proves identity.
     data = {
         "code": req.code,
         "client_id": os.environ["GOOGLE_CLIENT_ID"],
@@ -124,15 +125,28 @@ def connect_google(
 
     refresh_token = tokens.get("refresh_token")
     if not refresh_token:
-        # Google only returns this on first consent — client must use access_type=offline + prompt=consent
         raise HTTPException(
-            400,
-            "No refresh token returned; re-consent with offline access + prompt=consent.",
+            400, "No refresh token; re-consent with offline access + prompt=consent."
         )
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise HTTPException(400, "No id_token returned from Google.")
 
-    # 2. upsert the connection (encrypted) + set the user's timezone.
-    #    The client sends its device tz; calendar.events can't read calendar metadata,
-    #    so we don't fetch the calendar's tz server-side (would need a broader scope).
+    # identify the user from the verified id_token
+    claims = verify_google_id_token(id_token)
+    sub = claims["sub"]
+    user = session.exec(
+        select(User).where(User.auth_provider == "google", User.provider_subject == sub)
+    ).first()
+    if user is None:
+        user = User(
+            auth_provider="google", provider_subject=sub, email=claims.get("email")
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    # store the encrypted refresh token + timezone
     conn = session.exec(
         select(ProviderConnection).where(
             ProviderConnection.user_id == user.id,
@@ -149,7 +163,8 @@ def connect_google(
     session.add(user)
     session.commit()
 
-    return {"connected": True, "timezone": user.timezone, "scopes": conn.scopes}
+    # mint a backend session token the app uses for all future requests
+    return {"session_token": issue_session(str(user.id)), "timezone": user.timezone}
 
 
 @app.post("/propose")
@@ -207,9 +222,3 @@ def speak(req: SpeakRequest):
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text)
     return StreamingResponse(r.iter_content(chunk_size=4096), media_type="audio/mpeg")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield

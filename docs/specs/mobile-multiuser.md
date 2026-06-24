@@ -754,6 +754,137 @@ def build_scheduler_for(user: User, conn: ProviderConnection) -> Scheduler:
 After typing these in, I'll run a direct test (add → list → cleanup on your real Google Tasks) plus an
 agent chat ("add X to my to-dos" / "what's on my list?") to confirm the skill wiring.
 
+---
+
+## Phase 6b-1 — backend session tokens (rework auth, type these in)
+
+The app does ONE Google OAuth → gets a code → `/connect/google` exchanges it for identity + calendar
+access AND returns a backend-signed **session token** the app uses for everything after. `current_user`
+now verifies *our* session token, not a Google id_token. Four edits.
+
+### Deps + env (do first)
+- `requirements.txt`: add `PyJWT`, then `pip install PyJWT`.
+- Generate a signing secret and add to `.env` (and Railway): `SESSION_SECRET`:
+  ```
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
+  (Railway also still needs `GOOGLE_CLIENT_SECRET` for the code exchange.)
+
+### 1. `ryaa/session.py` (new file)
+```python
+import os
+import time
+
+import jwt
+
+_ALG = "HS256"
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
+
+
+def issue_session(user_id: str) -> str:
+    now = int(time.time())
+    payload = {"sub": user_id, "iat": now, "exp": now + SESSION_TTL_SECONDS}
+    return jwt.encode(payload, os.environ["SESSION_SECRET"], algorithm=_ALG)
+
+
+def verify_session(token: str) -> str:
+    """Return the user_id from a valid session token; raises on invalid/expired."""
+    payload = jwt.decode(token, os.environ["SESSION_SECRET"], algorithms=[_ALG])
+    return payload["sub"]
+```
+
+### 2. `ryaa/auth.py` — `current_user` now verifies the session token
+Change the import line `from sqlmodel import Session, select` → `from sqlmodel import Session` (select is
+no longer used here), add `import uuid` and `from ryaa.session import verify_session`, and **keep**
+`verify_google_id_token` (connect still uses it). Replace `current_user` with:
+```python
+def current_user(
+    authorization: str | None = Header(default=None),
+    session: Session = Depends(get_session),
+) -> User:
+    if not authorization:
+        raise HTTPException(401, "Missing Authorization header")
+    try:
+        user_id = verify_session(authorization.removeprefix("Bearer ").strip())
+    except Exception:
+        raise HTTPException(401, "Invalid or expired session")
+    user = session.get(User, uuid.UUID(user_id))
+    if user is None:
+        raise HTTPException(401, "User not found")
+    return user
+```
+
+### 3. `ryaa/api.py` — imports
+```python
+from ryaa.auth import current_user, verify_google_id_token   # add verify_google_id_token
+from ryaa.session import issue_session                        # NEW
+```
+
+### 4. `ryaa/api.py` — rework `/connect/google` (no `current_user`; code is the proof; returns a session)
+Replace the whole `connect_google` function with:
+```python
+@app.post("/connect/google")
+def connect_google(req: ConnectRequest, session: Session = Depends(get_session)):
+    # No current_user — the one-time auth code itself proves identity.
+    data = {
+        "code": req.code,
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+        "redirect_uri": req.redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    if req.code_verifier:
+        data["code_verifier"] = req.code_verifier
+    resp = requests.post("https://oauth2.googleapis.com/token", data=data)
+    if resp.status_code != 200:
+        raise HTTPException(400, f"Token exchange failed: {resp.text}")
+    tokens = resp.json()
+
+    refresh_token = tokens.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(400, "No refresh token; re-consent with offline access + prompt=consent.")
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise HTTPException(400, "No id_token returned from Google.")
+
+    # identify the user from the verified id_token
+    claims = verify_google_id_token(id_token)
+    sub = claims["sub"]
+    user = session.exec(
+        select(User).where(User.auth_provider == "google", User.provider_subject == sub)
+    ).first()
+    if user is None:
+        user = User(auth_provider="google", provider_subject=sub, email=claims.get("email"))
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    # store the encrypted refresh token + timezone
+    conn = session.exec(
+        select(ProviderConnection).where(
+            ProviderConnection.user_id == user.id,
+            ProviderConnection.provider == "google",
+        )
+    ).first()
+    if conn is None:
+        conn = ProviderConnection(user_id=user.id, provider="google")
+    conn.credentials = encrypt(refresh_token)
+    conn.scopes = tokens.get("scope", "")
+    if req.timezone:
+        user.timezone = req.timezone
+    session.add(conn)
+    session.add(user)
+    session.commit()
+
+    # mint a backend session token the app uses for all future requests
+    return {"session_token": issue_session(str(user.id)), "timezone": user.timezone}
+```
+
+After typing these in, I'll test backend-side with a fresh one-time code: `POST /connect/google` (code
+only, no header) → returns a `session_token` → then `POST /propose` with that token as the bearer →
+hits your real calendar. That proves the whole new auth path before we build the app side (6b-2).
+
+
 
 
 
