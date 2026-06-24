@@ -109,18 +109,20 @@ export default function Chat({
       )}
 
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + space.sm }]}>
-        <Glass rounded={radius.pill} style={styles.inputCapsule}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Message ryaa."
-            placeholderTextColor={color.inkSoft}
-            editable={!busy}
-            onSubmitEditing={send}
-            returnKeyType="send"
-          />
-        </Glass>
+        <View style={styles.capsuleShadow}>
+          <Glass nav rounded={radius.pill}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Message ryaa."
+              placeholderTextColor={color.inkSoft}
+              editable={!busy}
+              onSubmitEditing={send}
+              returnKeyType="send"
+            />
+          </Glass>
+        </View>
         {busy ? (
           <ActivityIndicator style={styles.spinner} color={color.ink} />
         ) : (
@@ -183,7 +185,15 @@ const styles = StyleSheet.create({
     borderTopColor: color.line,
     backgroundColor: color.paper,
   },
-  inputCapsule: { flex: 1 },
+  capsuleShadow: {
+    flex: 1,
+    borderRadius: radius.pill,
+    shadowColor: color.ink,
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
   input: {
     fontFamily: font.body,
     fontSize: 16,
