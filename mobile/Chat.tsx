@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
+  Animated,
   Keyboard,
   LayoutAnimation,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import * as api from './api';
 import ChromeButton from './components/ChromeButton';
 import CrtBackdrop from './components/CrtBackdrop';
 import { Glass, GlassCard } from './components/Glass';
+import MessageLine from './components/MessageLine';
 import ThinkingCaption from './components/ThinkingCaption';
 import Wordmark from './components/Wordmark';
 import { color, font, radius, screenPad, space } from './theme';
@@ -32,6 +34,8 @@ export default function Chat({
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<api.ProposeResult | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
   const [kb, setKb] = useState(0);
   const insets = useSafeAreaInsets();
   const headerH = insets.top + 46; // paddingTop (insets.top+6) + row (~28) + paddingBottom (12)
@@ -116,23 +120,24 @@ export default function Chat({
     <View style={styles.flex}>
       <CrtBackdrop />
 
-      <FlatList
+      <Animated.ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[
           styles.list,
           { paddingTop: headerH + space.md, paddingBottom: (kb > 0 ? kb : insets.bottom) + 96 },
         ]}
-        data={messages}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => (
-          <View style={[styles.bubble, item.role === 'user' ? styles.user : styles.assistant]}>
-            <Text style={item.role === 'user' ? styles.userText : styles.assistantText}>
-              {item.content}
-            </Text>
-          </View>
-        )}
-        ListFooterComponent={busy ? <ThinkingCaption /> : null}
-      />
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: true,
+        })}
+        scrollEventThrottle={16}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map((m, i) => (
+          <MessageLine key={i} item={m} scrollY={scrollY} />
+        ))}
+        {busy && <ThinkingCaption />}
+      </Animated.ScrollView>
 
       {/* Floating header so the list scrolls behind the upper glass too. Rendered
           AFTER the list so it paints on top; onLayout feeds the list's paddingTop. */}
@@ -206,22 +211,7 @@ const styles = StyleSheet.create({
     borderBottomColor: color.line,
   },
   signout: { fontFamily: font.mono, fontSize: 12.5, color: color.inkSoft },
-  list: { padding: space.md, gap: space.sm },
-  bubble: {
-    maxWidth: '85%',
-    borderRadius: radius.bubble,
-    paddingVertical: 9,
-    paddingHorizontal: 13,
-  },
-  user: { alignSelf: 'flex-end', backgroundColor: color.ink },
-  assistant: {
-    alignSelf: 'flex-start',
-    backgroundColor: color.paper2,
-    borderWidth: 1,
-    borderColor: color.line,
-  },
-  userText: { color: color.paper, fontFamily: font.body, fontSize: 15.5, lineHeight: 21 },
-  assistantText: { color: color.ink, fontFamily: font.body, fontSize: 15.5, lineHeight: 21 },
+  list: { padding: space.md, gap: space.md },
   card: { margin: space.md },
   cardText: { fontFamily: font.heading, fontSize: 16, color: color.ink },
   cardNote: { fontFamily: font.body, fontSize: 13, color: color.inkSoft, marginTop: 4 },

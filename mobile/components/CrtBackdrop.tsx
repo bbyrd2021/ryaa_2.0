@@ -1,20 +1,18 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, Line, Pattern, Rect } from 'react-native-svg';
+
+import { startSweep, SWEEP_BAND, sweepT } from './crtSweep';
 
 // Quiet CRT tube texture + RGB sweep line, mounted as the FIRST child of Chat so
 // it sits BEHIND the chat + glass — the glass refracts it (that's the whole
 // point). Paper stays dominant (ryaa-crt-chrome §5: gray idle tube, never black).
 // RN has no `mix-blend: screen`, so the sweep is low-alpha additive over paper.
 
-const BAND = 10; // px — feathered height of the sweep line
-const PERIOD = 9000; // ms — one slow pass top -> bottom
-
 export default function CrtBackdrop() {
   const { height: H } = useWindowDimensions(); // full device height, so the sweep spans top -> bottom
   const [reduced, setReduced] = useState(false);
-  const t = useRef(new Animated.Value(0)).current;
 
   // Honor the system reduce-motion setting (skill §5: never leave a frozen band).
   useEffect(() => {
@@ -27,23 +25,14 @@ export default function CrtBackdrop() {
     };
   }, []);
 
+  // Drive the shared sweep (also read by MessageLine for the text distortion).
   useEffect(() => {
-    if (reduced) return;
-    const loop = Animated.loop(
-      Animated.timing(t, {
-        toValue: 1,
-        duration: PERIOD,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [reduced, t]);
+    if (!reduced) startSweep();
+  }, [reduced]);
 
-  const translateY = t.interpolate({
+  const translateY = sweepT.interpolate({
     inputRange: [0, 1],
-    outputRange: [-BAND, H + BAND],
+    outputRange: [-SWEEP_BAND, H + SWEEP_BAND],
   });
 
   return (
@@ -88,5 +77,5 @@ export default function CrtBackdrop() {
 }
 
 const styles = StyleSheet.create({
-  band: { position: 'absolute', left: 0, right: 0, top: 0, height: BAND },
+  band: { position: 'absolute', left: 0, right: 0, top: 0, height: SWEEP_BAND },
 });
