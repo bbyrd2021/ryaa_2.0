@@ -66,6 +66,7 @@ class EventRef(EventDetails):
 
     id: str
     state: EventState | None = None  # provenance from the store; None = pre-existing/external
+    editable: bool = True  # False for Google-managed events (e.g. auto-added from Gmail) — can't be patched
 
 # --------------------------------------------------------------------------- #
 # The LLM parser (workflow-era brain; used by the CLI path)

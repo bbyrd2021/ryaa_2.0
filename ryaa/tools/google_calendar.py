@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from ryaa.tools.calendar_tool import EventDetails, EventRef
 from ryaa.tools.event_state import EventState
@@ -47,11 +48,20 @@ class GoogleCalendarBackend:
 
     def update_event(self, event_id: str, event: EventDetails) -> str:
         body = self._body(event, status="modified")
-        updated = (
-            self._svc.events()
-            .patch(calendarId=self._cal, eventId=event_id, body=body)
-            .execute()
-        )
+        try:
+            updated = (
+                self._svc.events()
+                .patch(calendarId=self._cal, eventId=event_id, body=body)
+                .execute()
+            )
+        except HttpError as e:
+            # Google-managed events (auto-added from email) reject patches with 400/403.
+            if e.resp.status in (400, 403):
+                raise RuntimeError(
+                    "That event was auto-added by Google (e.g. from an email), "
+                    "so it can't be edited here."
+                ) from e
+            raise
         return updated["id"]
 
     def list_events(self, start: datetime, end: datetime) -> list[EventRef]:
@@ -109,6 +119,9 @@ class GoogleCalendarBackend:
                 created_at=datetime.fromisoformat(e["created"].replace("Z", "+00:00")),
                 modified_at=datetime.fromisoformat(e["updated"].replace("Z", "+00:00")),
             )
+        # Google-managed events (eventType != "default", e.g. "fromGmail" flight/
+        # hotel auto-adds) can't be patched via the API — flag so ryaa won't try.
+        editable = e.get("eventType", "default") == "default"
         return EventRef(
             id=e["id"],
             name=e.get("summary", ""),
@@ -116,4 +129,5 @@ class GoogleCalendarBackend:
             duration_minutes=int((end - start).total_seconds() // 60),
             participants=json.loads(priv.get("ryaa_participants", "[]")),
             state=state,
+            editable=editable,
         )

@@ -90,7 +90,10 @@ class CalendarSkill:
             "'external' means it was already on the calendar — mention this when it helps. "
             "To change or ask about an existing event, call find_events first; "
             "if several match, ask which one. Once you know the event_id and the new "
-            "details, call propose_modification (the user confirms separately)."
+            "details, call propose_modification (the user confirms separately). "
+            "If an event's 'editable' is false, it was auto-added by Google (e.g. a "
+            "flight or hotel from your email) and CANNOT be changed — tell the user "
+            "that plainly instead of calling propose_modification."
         )
 
     def tools(self) -> list[ToolSpec]:
@@ -142,6 +145,7 @@ class CalendarSkill:
                     "start": e.start.isoformat(),
                     "duration_minutes": e.duration_minutes,
                     "state": e.state.status if e.state else "external",
+                    "editable": e.editable,
                 }
                 for e in events
             ]
