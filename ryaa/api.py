@@ -261,9 +261,13 @@ def confirm(
         if req.action == "modify" and req.event_id:
             return scheduler.update(req.event_id, req.event)
         return scheduler.create(req.event)
-    except RuntimeError as e:
-        logger.warning("Confirm failed: %s", e)
-        return ScheduleResult(status="failed", message=str(e))
+    except Exception as e:  # never 500 the user — surface the real reason instead
+        logger.exception(
+            "Confirm failed (action=%s, event_id=%s)", req.action, req.event_id
+        )
+        return ScheduleResult(
+            status="failed", message=f"Couldn't save that to your calendar: {e}"
+        )
 
 
 @app.post("/transcribe")
