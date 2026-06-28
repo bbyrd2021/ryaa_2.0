@@ -28,6 +28,7 @@ export const font = {
   heading: 'FamiljenGrotesk_600SemiBold',
   body: 'HankenGrotesk_400Regular', // body only
   bodyMed: 'HankenGrotesk_500Medium',
+  bodyBold: 'HankenGrotesk_700Bold', // markdown **bold** (RN won't synthesize it)
   mono: 'SpaceMono_400Regular', // genuine tech bits (labels)
   monoBold: 'SpaceMono_700Bold', // button labels
 } as const;

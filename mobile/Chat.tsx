@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
   Keyboard,
   LayoutAnimation,
   Platform,
@@ -35,7 +34,6 @@ export default function Chat({
   const [pending, setPending] = useState<api.ProposeResult | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
   const [kb, setKb] = useState(0);
   const insets = useSafeAreaInsets();
   const headerH = insets.top + 46; // paddingTop (insets.top+6) + row (~28) + paddingBottom (12)
@@ -138,24 +136,20 @@ export default function Chat({
     <View style={styles.flex}>
       <CrtBackdrop />
 
-      <Animated.ScrollView
+      <ScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[
           styles.list,
           { paddingTop: headerH + space.md, paddingBottom: (kb > 0 ? kb : insets.bottom) + 96 },
         ]}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
-        scrollEventThrottle={16}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
         {messages.map((m, i) => (
-          <MessageLine key={i} item={m} scrollY={scrollY} />
+          <MessageLine key={i} item={m} />
         ))}
         {busy && messages[messages.length - 1]?.role === 'user' && <ThinkingCaption />}
-      </Animated.ScrollView>
+      </ScrollView>
 
       {/* Floating header so the list scrolls behind the upper glass too. Rendered
           AFTER the list so it paints on top; onLayout feeds the list's paddingTop. */}

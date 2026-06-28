@@ -5,6 +5,7 @@ import {
 import {
   HankenGrotesk_400Regular,
   HankenGrotesk_500Medium,
+  HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk';
 import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import { useFonts } from 'expo-font';
@@ -34,6 +35,7 @@ export default function App() {
     FamiljenGrotesk_600SemiBold,
     HankenGrotesk_400Regular,
     HankenGrotesk_500Medium,
+    HankenGrotesk_700Bold,
     SpaceMono_400Regular,
     SpaceMono_700Bold,
   });
