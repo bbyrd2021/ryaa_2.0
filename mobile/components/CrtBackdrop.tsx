@@ -48,10 +48,11 @@ export default function CrtBackdrop() {
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* idle-tube gray — what the clear glass shows through, so it reads gray
-          not white. GRAYNESS KNOB: raise these alphas = grayer behind the glass. */}
+      {/* CRT idle-tube gray (#6f6e66 -> #4a4943) — what the clear glass shows
+          through, so it reads as a dark gray screen instead of white paper.
+          DARKNESS KNOB: raise these alphas = closer to the solid CRT tube. */}
       <LinearGradient
-        colors={['rgba(111,110,102,0.18)', 'rgba(74,73,67,0.10)', 'rgba(111,110,102,0.18)']}
+        colors={['rgba(111,110,102,0.72)', 'rgba(90,89,79,0.80)', 'rgba(74,73,67,0.86)']}
         style={StyleSheet.absoluteFill}
       />
 

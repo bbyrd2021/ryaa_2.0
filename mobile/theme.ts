@@ -14,7 +14,6 @@ export const color = {
   glassNav: 'rgba(239, 237, 230, 0.22)', // paper-tinted glass fill — OPACITY KNOB (lower = more see-through / grayer)
   glassBorder: 'rgba(20, 19, 15, 0.12)',
   topHighlight: 'rgba(255, 255, 255, 0.55)',
-  glassRim: 'rgba(255, 255, 255, 0.5)', // bright glossy specular edge on liquid glass
   frostWell: 'rgba(255, 255, 255, 0.16)', // recessed input well — translucent so the backdrop warps through
 } as const;
 

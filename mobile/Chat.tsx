@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,6 +16,7 @@ import * as api from './api';
 import ChromeButton from './components/ChromeButton';
 import CrtBackdrop from './components/CrtBackdrop';
 import { Glass, GlassCard } from './components/Glass';
+import ThinkingCaption from './components/ThinkingCaption';
 import Wordmark from './components/Wordmark';
 import { color, font, radius, screenPad, space } from './theme';
 
@@ -30,7 +31,34 @@ export default function Chat({
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<api.ProposeResult | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [kb, setKb] = useState(0);
   const insets = useSafeAreaInsets();
+  const headerH = insets.top + 46; // paddingTop (insets.top+6) + row (~28) + paddingBottom (12)
+
+  // The composer dock is absolute, so KeyboardAvoidingView can't push it — track
+  // the keyboard height directly and lift the dock above it.
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, (e) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKb(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener(hideEvt, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKb(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  // Cancel the in-flight request (the composer's stop button).
+  function stop() {
+    abortRef.current?.abort();
+  }
 
   async function send() {
     const text = input.trim();
@@ -41,8 +69,10 @@ export default function Chat({
     setInput('');
     setPending(null);
     setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const res = await api.propose(token, next);
+      const res = await api.propose(token, next, controller.signal);
       if (res.summary) {
         setMessages((m) => [...m, { role: 'assistant', content: res.summary! }]);
       }
@@ -50,8 +80,10 @@ export default function Chat({
         setPending(res); // show the confirm card
       }
     } catch (e) {
+      if (controller.signal.aborted) return; // user stopped it — no error bubble
       setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong. ${e}` }]);
     } finally {
+      abortRef.current = null;
       setBusy(false);
     }
   }
@@ -59,34 +91,37 @@ export default function Chat({
   async function confirmEvent() {
     if (!pending?.event) return;
     setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const res = await api.confirm(token, pending.action, pending.event, pending.event_id);
+      const res = await api.confirm(
+        token,
+        pending.action,
+        pending.event,
+        pending.event_id,
+        controller.signal,
+      );
       setMessages((m) => [...m, { role: 'assistant', content: res.message }]);
     } catch (e) {
+      if (controller.signal.aborted) return; // user stopped it — no error bubble
       setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong. ${e}` }]);
     } finally {
+      abortRef.current = null;
       setPending(null);
       setBusy(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.flex}>
       <CrtBackdrop />
-
-      <Glass nav rounded={0} style={styles.header}>
-        <Wordmark size={22} treatment="ink" />
-        <Pressable onPress={onSignOut} hitSlop={8}>
-          <Text style={styles.signout}>sign out</Text>
-        </Pressable>
-      </Glass>
 
       <FlatList
         style={styles.scroll}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.list,
+          { paddingTop: headerH + space.md, paddingBottom: (kb > 0 ? kb : insets.bottom) + 96 },
+        ]}
         data={messages}
         keyExtractor={(_, i) => String(i)}
         renderItem={({ item }) => (
@@ -96,45 +131,62 @@ export default function Chat({
             </Text>
           </View>
         )}
+        ListFooterComponent={busy ? <ThinkingCaption /> : null}
       />
 
-      {pending && (
-        <GlassCard style={styles.card}>
-          <Text style={styles.cardText}>Add this to your calendar?</Text>
-          <Text style={styles.cardNote}>Nothing saves until you say yes.</Text>
-          <View style={styles.cardButtons}>
-            <ChromeButton label="confirm" compact onPress={confirmEvent} />
-            <Pressable onPress={() => setPending(null)} style={styles.cancel} hitSlop={6}>
-              <Text style={styles.cancelText}>cancel</Text>
-            </Pressable>
-          </View>
-        </GlassCard>
-      )}
+      {/* Floating header so the list scrolls behind the upper glass too. Rendered
+          AFTER the list so it paints on top; onLayout feeds the list's paddingTop. */}
+      <View style={styles.headerDock}>
+        <Glass nav rounded={0} style={[styles.header, { paddingTop: insets.top + 6 }]}>
+          <Wordmark size={22} treatment="ink" />
+          <Pressable onPress={onSignOut} hitSlop={8}>
+            <Text style={styles.signout}>sign out</Text>
+          </Pressable>
+        </Glass>
+      </View>
 
-      <View style={[styles.composerWrap, { paddingBottom: insets.bottom + space.sm }]}>
-        <View style={styles.composerShadow}>
-          <Glass nav rounded={32} style={styles.composer}>
-            <Glass frosted rounded={22} style={styles.inputWell}>
-              <TextInput
-                style={styles.input}
-                value={input}
-                onChangeText={setInput}
-                placeholder="Message ryaa."
-                placeholderTextColor={color.inkSoft}
-                editable={!busy}
-                onSubmitEditing={send}
-                returnKeyType="send"
-              />
+      {/* Floating dock over the full-height list, so bubbles scroll BEHIND the
+          glass. bottom:0 resolves against the KAV's padded box, so it rides above
+          the keyboard. */}
+      <View style={[styles.bottomDock, { bottom: kb }]}>
+        {pending && (
+          <GlassCard style={styles.card}>
+            <Text style={styles.cardText}>Add this to your calendar?</Text>
+            <Text style={styles.cardNote}>Nothing saves until you say yes.</Text>
+            <View style={styles.cardButtons}>
+              <ChromeButton label="confirm" compact onPress={confirmEvent} />
+              <Pressable onPress={() => setPending(null)} style={styles.cancel} hitSlop={6}>
+                <Text style={styles.cancelText}>cancel</Text>
+              </Pressable>
+            </View>
+          </GlassCard>
+        )}
+
+        <View style={[styles.composerWrap, { paddingBottom: kb > 0 ? space.sm : insets.bottom + space.sm }]}>
+          <View style={styles.composerShadow}>
+            <Glass nav rounded={32} style={styles.composer}>
+              <Glass frosted rounded={22} style={styles.inputWell}>
+                <TextInput
+                  style={styles.input}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Message ryaa."
+                  placeholderTextColor={color.inkSoft}
+                  editable={!busy}
+                  onSubmitEditing={send}
+                  returnKeyType="send"
+                />
+              </Glass>
+              {busy ? (
+                <ChromeButton label="stop" compact onPress={stop} />
+              ) : (
+                <ChromeButton label="send" compact onPress={send} />
+              )}
             </Glass>
-            {busy ? (
-              <ActivityIndicator style={styles.spinner} color={color.ink} />
-            ) : (
-              <ChromeButton label="send" compact onPress={send} />
-            )}
-          </Glass>
+          </View>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -147,7 +199,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
     paddingBottom: 12,
     paddingHorizontal: screenPad,
     borderWidth: 0,
@@ -186,6 +237,9 @@ const styles = StyleSheet.create({
   // The composer is ONE floating glass island holding the recessed input + send,
   // mirroring the web app's .composer (a sticky rounded island, not a bare input
   // with a detached button). Shadow lives on an outer wrapper since Glass clips.
+  // bottomDock floats it (+ confirm card) over the list so bubbles pass behind.
+  headerDock: { position: 'absolute', top: 0, left: 0, right: 0 },
+  bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   composerWrap: { paddingHorizontal: space.md, paddingTop: space.sm },
   composerShadow: {
     borderRadius: radius.r,
@@ -212,5 +266,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 11,
   },
-  spinner: { width: 56 },
 });

@@ -39,16 +39,13 @@ export function Glass({
 
   if (LIQUID && !frosted) {
     // Real iOS 26 Liquid Glass: NO tint, max-transparent `clear` so the backdrop
-    // refracts/warps through it, finished with a bright glossy specular rim (the
-    // signature edge) instead of the dark hairline.
+    // refracts/warps through it, and NO manual border — the native glass renders
+    // its own edge; a CSS border just sits on top as a fake hard outline.
     return (
       <GlassView
         glassEffectStyle="clear"
         isInteractive
-        style={[
-          { borderRadius: rounded, overflow: 'hidden', borderWidth: 1.5, borderColor: color.glassRim },
-          style,
-        ]}
+        style={[{ borderRadius: rounded, overflow: 'hidden' }, style]}
       >
         {children}
       </GlassView>

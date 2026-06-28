@@ -25,8 +25,14 @@ export type ScheduleResult = {
   event_id: string | null;
 };
 
-// One helper: POST JSON with the session token, throw on non-2xx.
-async function post<T>(path: string, token: string, body: unknown): Promise<T> {
+// One helper: POST JSON with the session token, throw on non-2xx. Pass a
+// `signal` to make the request abortable (the composer's stop button).
+async function post<T>(
+  path: string,
+  token: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, {
     method: 'POST',
     headers: {
@@ -34,6 +40,7 @@ async function post<T>(path: string, token: string, body: unknown): Promise<T> {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     throw new Error(`${path} ${res.status}: ${await res.text()}`);
@@ -41,8 +48,8 @@ async function post<T>(path: string, token: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-export function propose(token: string, messages: Msg[]) {
-  return post<ProposeResult>('/propose', token, { messages });
+export function propose(token: string, messages: Msg[], signal?: AbortSignal) {
+  return post<ProposeResult>('/propose', token, { messages }, signal);
 }
 
 export function confirm(
@@ -50,10 +57,12 @@ export function confirm(
   action: string,
   event: EventDetails,
   eventId: string | null,
+  signal?: AbortSignal,
 ) {
-  return post<ScheduleResult>('/confirm', token, {
-    action,
-    event,
-    event_id: eventId,
-  });
+  return post<ScheduleResult>(
+    '/confirm',
+    token,
+    { action, event, event_id: eventId },
+    signal,
+  );
 }
