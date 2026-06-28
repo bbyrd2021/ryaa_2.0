@@ -33,7 +33,7 @@ export default function Chat({
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<api.ProposeResult | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [kb, setKb] = useState(0);
@@ -59,44 +59,62 @@ export default function Chat({
     };
   }, []);
 
-  // Cancel the in-flight request (the composer's stop button).
+  // Cancel the in-flight request (the composer's stop button). Leaves any text
+  // streamed so far in place, like Claude's stop.
   function stop() {
-    abortRef.current?.abort();
+    abortRef.current?.();
+    abortRef.current = null;
+    setBusy(false);
   }
 
-  async function send() {
+  function send() {
     const text = input.trim();
     if (!text || busy) return;
 
-    const next: api.Msg[] = [...messages, { role: 'user', content: text }];
-    setMessages(next);
+    const base: api.Msg[] = [...messages, { role: 'user', content: text }];
+    setMessages(base);
     setInput('');
     setPending(null);
     setBusy(true);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const res = await api.propose(token, next, controller.signal);
-      if (res.summary) {
-        setMessages((m) => [...m, { role: 'assistant', content: res.summary! }]);
-      }
-      if (res.status === 'proposed' && res.event) {
-        setPending(res); // show the confirm card
-      }
-    } catch (e) {
-      if (controller.signal.aborted) return; // user stopped it — no error bubble
-      setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong. ${e}` }]);
-    } finally {
-      abortRef.current = null;
-      setBusy(false);
-    }
+
+    let acc = '';
+    let added = false; // has the assistant line been appended yet?
+    const writeLast = (content: string) =>
+      setMessages((m) => {
+        if (!added) {
+          added = true;
+          return [...m, { role: 'assistant', content }];
+        }
+        const copy = [...m];
+        copy[copy.length - 1] = { role: 'assistant', content };
+        return copy;
+      });
+
+    abortRef.current = api.proposeStream(token, base, {
+      onDelta: (t) => {
+        acc += t;
+        writeLast(acc); // reveal progressively (caption hides once a line exists)
+      },
+      onResult: (r) => {
+        const finalText = r.summary ?? acc;
+        if (added || finalText) writeLast(finalText);
+        if (r.status === 'proposed' && r.event) setPending(r);
+        abortRef.current = null;
+        setBusy(false);
+      },
+      onError: (msg) => {
+        writeLast(`Something went wrong. ${msg}`);
+        abortRef.current = null;
+        setBusy(false);
+      },
+    });
   }
 
   async function confirmEvent() {
     if (!pending?.event) return;
     setBusy(true);
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortRef.current = () => controller.abort();
     try {
       const res = await api.confirm(
         token,
@@ -131,12 +149,12 @@ export default function Chat({
           useNativeDriver: true,
         })}
         scrollEventThrottle={16}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
         {messages.map((m, i) => (
           <MessageLine key={i} item={m} scrollY={scrollY} />
         ))}
-        {busy && <ThinkingCaption />}
+        {busy && messages[messages.length - 1]?.role === 'user' && <ThinkingCaption />}
       </Animated.ScrollView>
 
       {/* Floating header so the list scrolls behind the upper glass too. Rendered

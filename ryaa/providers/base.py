@@ -26,6 +26,7 @@ in an interface so the augmentation is portable.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
@@ -54,6 +55,21 @@ class ModelTurn(BaseModel):
     text: str = ""
     tool_calls: list[ToolCall] = []
     tool_call_id: str | None = None
+
+
+class StreamChunk(BaseModel):
+    """
+    One piece of a STREAMED model step, in our neutral vocabulary.
+
+    - type="delta": `text` is a new fragment of the assistant's reply.
+    - type="done":  `turn` is the COMPLETE step (full text + any tool_calls),
+                    assembled by the provider once the stream ends.
+
+    A provider yields zero-or-more "delta" chunks, then exactly one "done".
+    """
+    type: Literal["delta", "done"]
+    text: str = ""
+    turn: ModelTurn | None = None
 
 
 class Message(BaseModel):
@@ -131,5 +147,20 @@ class LLMProvider(Protocol):
         """
         One agent step: given the conversation and the tools on offer, return what
         the model wants to do next — free text and/or tool calls.
+        """
+        ...
+
+    def act_stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        model: str | None = None,
+    ) -> Iterator[StreamChunk]:
+        """
+        Streaming variant of act(): yields the assistant's reply as "delta" chunks
+        as the model produces them, then a final "done" chunk carrying the complete
+        ModelTurn (full text + any tool_calls). The provider hides whatever native
+        streaming mechanism it uses; the rest of RYAA only sees StreamChunks.
         """
         ...

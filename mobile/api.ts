@@ -66,3 +66,68 @@ export function confirm(
     signal,
   );
 }
+
+export type ProposeStreamHandlers = {
+  onDelta: (text: string) => void; // a new fragment of ryaa's reply
+  onStatus?: (status: string) => void; // what ryaa is doing (e.g. "calendar")
+  onResult: (result: ProposeResult) => void; // terminal proposal/reply
+  onError: (message: string) => void;
+};
+
+// Stream /propose/stream via XMLHttpRequest — RN's fetch can't read a response
+// body incrementally, but XHR exposes responseText as it grows. Parses SSE
+// frames (`data: {...}\n\n`) and returns an abort fn for the stop button.
+export function proposeStream(
+  token: string,
+  messages: Msg[],
+  h: ProposeStreamHandlers,
+): () => void {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${BACKEND}/propose/stream`);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+  let seen = 0; // chars of responseText already consumed
+  let buffer = '';
+  let aborted = false;
+
+  function pump() {
+    const full = xhr.responseText;
+    if (full.length <= seen) return;
+    buffer += full.slice(seen);
+    seen = full.length;
+    let nl: number;
+    while ((nl = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, nl);
+      buffer = buffer.slice(nl + 2);
+      const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
+      if (!dataLine) continue;
+      const payload = dataLine.slice(5).trim();
+      if (!payload) continue;
+      try {
+        const ev = JSON.parse(payload);
+        if (ev.type === 'delta') h.onDelta(ev.text);
+        else if (ev.type === 'status') h.onStatus?.(ev.status);
+        else if (ev.type === 'result') h.onResult(ev.result as ProposeResult);
+        else if (ev.type === 'error') h.onError(ev.message || 'stream error');
+      } catch {
+        // partial/invalid frame — skip
+      }
+    }
+  }
+
+  xhr.onreadystatechange = () => {
+    if (aborted) return;
+    if (xhr.readyState >= 3) pump();
+    if (xhr.readyState === 4 && xhr.status >= 400) h.onError(`stream ${xhr.status}`);
+  };
+  xhr.onerror = () => {
+    if (!aborted) h.onError('network error');
+  };
+  xhr.send(JSON.stringify({ messages }));
+
+  return () => {
+    aborted = true;
+    xhr.abort();
+  };
+}

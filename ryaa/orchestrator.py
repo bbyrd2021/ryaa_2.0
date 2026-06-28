@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Literal
 
 from pydantic import BaseModel
@@ -21,6 +22,15 @@ class ProposeResult(BaseModel):
     event: EventDetails | None = None
     action: Literal["create", "modify"] = "create"  # how /confirm should act
     event_id: str | None = None  # the event to modify (action == "modify")
+
+
+class ChatStreamEvent(BaseModel):
+    """A single SSE event from chat_stream() — the wire shape the client reads."""
+    type: Literal["delta", "status", "result", "error"]
+    text: str = ""                       # delta: a reply fragment
+    status: str = ""                     # status: what ryaa is doing
+    result: ProposeResult | None = None  # result: the terminal proposal/reply
+    message: str = ""                    # error: what went wrong
 
 
 class Scheduler:
@@ -53,6 +63,38 @@ class Scheduler:
                 event_id=result.event_id,
             )
         return ProposeResult(status="reply", summary=result.summary)
+
+    def chat_stream(self, history: list[Message]) -> Iterator[ChatStreamEvent]:
+        """Streaming twin of chat(): re-emits the agent's events on the wire."""
+        if self.agent is None:
+            yield ChatStreamEvent(
+                type="result",
+                result=ProposeResult(status="rejected", reasons=["no agent configured."]),
+            )
+            return
+
+        for ev in self.agent.run_stream(history):
+            if ev.type == "delta":
+                yield ChatStreamEvent(type="delta", text=ev.text)
+            elif ev.type == "status":
+                yield ChatStreamEvent(type="status", status=ev.status)
+            elif ev.result is not None:
+                r = ev.result
+                if r.kind == "proposal":
+                    yield ChatStreamEvent(
+                        type="result",
+                        result=ProposeResult(
+                            status="proposed",
+                            summary=r.summary,
+                            event=r.event,
+                            action=r.action,
+                            event_id=r.event_id,
+                        ),
+                    )
+                else:
+                    yield ChatStreamEvent(
+                        type="result", result=ProposeResult(status="reply", summary=r.summary)
+                    )
 
     def propose(self, user_input: str) -> ProposeResult:
         verdict = self.guardrails.validate(user_input)

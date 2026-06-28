@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -228,6 +229,28 @@ def propose(
 ) -> ProposeResult:
     history = [Message(role=m.role, content=m.content) for m in req.messages]
     return scheduler.chat(history)
+
+
+@app.post("/propose/stream")
+def propose_stream(
+    req: ProposeRequest, scheduler: Scheduler = Depends(user_scheduler)
+):
+    """Server-Sent Events twin of /propose: streams reply deltas, then a result."""
+    history = [Message(role=m.role, content=m.content) for m in req.messages]
+
+    def gen():
+        try:
+            for ev in scheduler.chat_stream(history):
+                yield f"data: {ev.model_dump_json()}\n\n"
+        except Exception as e:  # don't 500 mid-stream — emit a clean error event
+            logger.exception("propose/stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/confirm")

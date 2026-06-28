@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
 from typing import cast
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 
-from .base import Message, ModelTurn, T, ToolCall, ToolSpec
+from .base import Message, ModelTurn, StreamChunk, T, ToolCall, ToolSpec
 
 # Why a module-level default instead of hardcoding "gpt-4o" in each method:
 # one place to change the model, and it documents the provider's default.
@@ -151,6 +152,69 @@ class OpenAIProvider:
             if tc.type == "function"
         ]
         return ModelTurn(text=msg.content or "", tool_calls=calls)
+
+    def _tool_params(self, tools: list[ToolSpec]) -> list[ChatCompletionToolParam]:
+        return cast(
+            list[ChatCompletionToolParam],
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    },
+                }
+                for t in tools
+            ],
+        )
+
+    def act_stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        model: str | None = None,
+    ) -> Iterator[StreamChunk]:
+        model = model or self.default_model
+        stream = self.client.chat.completions.create(
+            model=model,
+            messages=self._to_openai(messages),
+            tools=self._tool_params(tools),
+            stream=True,
+        )
+
+        text_parts: list[str] = []
+        # OpenAI streams tool calls as fragments keyed by index; accumulate them.
+        tool_acc: dict[int, dict] = {}
+        for event in stream:
+            if not event.choices:
+                continue
+            delta = event.choices[0].delta
+            if delta.content:
+                text_parts.append(delta.content)
+                yield StreamChunk(type="delta", text=delta.content)
+            for tc in delta.tool_calls or []:
+                slot = tool_acc.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+                if tc.id:
+                    slot["id"] = tc.id
+                if tc.function and tc.function.name:
+                    slot["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    slot["args"] += tc.function.arguments
+
+        calls = [
+            ToolCall(
+                id=slot["id"],
+                name=slot["name"],
+                arguments=json.loads(slot["args"] or "{}"),
+            )
+            for _, slot in sorted(tool_acc.items())
+            if slot["name"]
+        ]
+        yield StreamChunk(
+            type="done", turn=ModelTurn(text="".join(text_parts), tool_calls=calls)
+        )
 
 
     def transcribe(self, data: bytes, filename: str = "speech.wav") -> str:

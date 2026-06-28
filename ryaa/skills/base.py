@@ -14,6 +14,14 @@ class AgentResult(BaseModel):
   action: Literal["create", "modify"] = "create"  # what confirming the proposal does
   event_id: str | None = None         # the event to change (when action == "modify")
 
+
+class AgentEvent(BaseModel):
+  """One thing the agent emits while streaming a turn (run_stream)."""
+  type: Literal["delta", "status", "result"]
+  text: str = ""                      # delta: a fragment of the reply
+  status: str = ""                    # status: a short label for what it's doing
+  result: AgentResult | None = None   # result: the terminal proposal/reply
+
 class Skill(Protocol):
   """Guidance for a family of tools: WHAT it does, HOW to use it, and the tools themselves."""
 
