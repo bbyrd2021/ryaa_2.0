@@ -11,9 +11,11 @@ export const color = {
 
   // glass (from references/glass.md baseline)
   glassPanel: 'rgba(255, 255, 255, 0.26)',
-  glassNav: 'rgba(239, 237, 230, 0.55)', // paper-tinted header
+  glassNav: 'rgba(239, 237, 230, 0.22)', // paper-tinted glass fill — OPACITY KNOB (lower = more see-through / grayer)
   glassBorder: 'rgba(20, 19, 15, 0.12)',
   topHighlight: 'rgba(255, 255, 255, 0.55)',
+  glassRim: 'rgba(255, 255, 255, 0.5)', // bright glossy specular edge on liquid glass
+  frostWell: 'rgba(255, 255, 255, 0.16)', // recessed input well — translucent so the backdrop warps through
 } as const;
 
 export const radius = { r: 18, bubble: 16, pill: 999 } as const;

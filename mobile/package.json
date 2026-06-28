@@ -11,6 +11,7 @@
     "expo": "~54.0.35",
     "expo-blur": "~15.0.8",
     "expo-font": "~14.0.12",
+    "expo-glass-effect": "~0.1.10",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-secure-store": "~15.0.8",
@@ -27,6 +28,8 @@
   },
   "scripts": {
     "start": "expo start",
+    "go": "REACT_NATIVE_PACKAGER_HOSTNAME=$(ipconfig getifaddr en0) expo start -c",
+    "tunnel": "expo start --tunnel -c",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"

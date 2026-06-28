@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from './api';
 import ChromeButton from './components/ChromeButton';
+import CrtBackdrop from './components/CrtBackdrop';
 import { Glass, GlassCard } from './components/Glass';
 import Wordmark from './components/Wordmark';
 import { color, font, radius, screenPad, space } from './theme';
@@ -74,6 +75,8 @@ export default function Chat({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <CrtBackdrop />
+
       <Glass nav rounded={0} style={styles.header}>
         <Wordmark size={22} treatment="ink" />
         <Pressable onPress={onSignOut} hitSlop={8}>
@@ -82,7 +85,7 @@ export default function Chat({
       </Glass>
 
       <FlatList
-        style={styles.flex}
+        style={styles.scroll}
         contentContainerStyle={styles.list}
         data={messages}
         keyExtractor={(_, i) => String(i)}
@@ -110,17 +113,19 @@ export default function Chat({
 
       <View style={[styles.composerWrap, { paddingBottom: insets.bottom + space.sm }]}>
         <View style={styles.composerShadow}>
-          <Glass nav rounded={radius.r} style={styles.composer}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Message ryaa."
-              placeholderTextColor={color.inkSoft}
-              editable={!busy}
-              onSubmitEditing={send}
-              returnKeyType="send"
-            />
+          <Glass nav rounded={32} style={styles.composer}>
+            <Glass frosted rounded={22} style={styles.inputWell}>
+              <TextInput
+                style={styles.input}
+                value={input}
+                onChangeText={setInput}
+                placeholder="Message ryaa."
+                placeholderTextColor={color.inkSoft}
+                editable={!busy}
+                onSubmitEditing={send}
+                returnKeyType="send"
+              />
+            </Glass>
             {busy ? (
               <ActivityIndicator style={styles.spinner} color={color.ink} />
             ) : (
@@ -135,6 +140,9 @@ export default function Chat({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: color.paper },
+  // Transparent so CrtBackdrop shows through the chat area (the paper base lives
+  // on the KeyboardAvoidingView underneath). An opaque fill here hides the sweep.
+  scroll: { flex: 1, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -194,17 +202,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
+  // The recessed input well — a frosted-blur inset (see components/Glass.tsx
+  // `frosted`), contrasting against the clear liquid-glass capsule around it.
+  inputWell: { flex: 1 },
   input: {
-    flex: 1,
     fontFamily: font.body,
     fontSize: 16,
     color: color.ink,
     paddingHorizontal: 15,
     paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: color.line,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.5)', // recessed lip inside the island
   },
   spinner: { width: 56 },
 });
