@@ -9,7 +9,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.ryaa.mobile"
+      "bundleIdentifier": "app.ryaa.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +30,12 @@
       "expo-web-browser",
       "expo-secure-store",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1b513f37-25c4-45a8-8fb1-5295b43a1407"
+      }
+    },
+    "owner": "bbyrd2026"
   }
 }
